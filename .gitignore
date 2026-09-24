@@ -2,6 +2,15 @@
 package-lock.json
 *.lock
 
+venv/
+.venv/
+env/
+
+# Ignore Python bytecode cache
+**/__pycache__/
+*.py[cod]
+
+
 # Logs
 logs
 *.log
