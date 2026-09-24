@@ -2,6 +2,10 @@
 package-lock.json
 *.lock
 
+venv/
+.venv/
+env/
+
 # Logs
 logs
 *.log
