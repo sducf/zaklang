@@ -5,10 +5,6 @@ from fastapi import FastAPI, HTTPException
 
 app = FastAPI()
 
-@app.get("/")
-def read_root():
-    return {"message": "ZakLang"}
-
 # Railway provides the GPU server address through an environment variable
 # This points to the Railtail service, which forwards request through
 # Tailscale to the RunPod GPU running llama.cpp - H
