@@ -1,0 +1,26 @@
+[
+  {
+    "inputs": [[1, 2, 3]],
+    "expected": 6
+  },
+  {
+    "inputs": [[-2, 5, 1]],
+    "expected": 4
+  },
+  {
+    "inputs": [[7]],
+    "expected": 7
+  },
+  {
+    "inputs": [[-4, -6]],
+    "expected": -10
+  },
+  {
+    "inputs": [[0, 0, 0]],
+    "expected": 0
+  },
+  {
+    "inputs": [[]],
+    "expected": 0
+  }
+]
