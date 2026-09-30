@@ -41,15 +41,23 @@ async def gpu_health():
 
         # If llama.cpp reponds successfully, report that the backend
         # can communivate with the remote GPU inference server -H
+        try:
+            llama_server = response.json()
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail="GPU server returned invalid JSON",
+            ) from exc
+
         return {
             "gpu":"connected",
-            "llama_server": response.json(),
+            "llama_server": llama_server,
         }
 
     except httpx.HTTPError as exc:
         raise HTTPException(
             # Return a 502 error when the backend itself is running, 
             # but the remote GPU service cannot be reached successfully -H
-            status=502,
+            status_code=502,
             detail=f"Could not reach GPU server: {exc}"
         )
