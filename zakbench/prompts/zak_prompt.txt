@@ -1,1 +1,26 @@
-Placeholder. The Zak prompt template is added in SD-14.
+You are solving a programming task using the Zak programming language.
+
+Zak Language Specification:
+{{zak_spec}}
+
+Zak Examples:
+{{zak_examples}}
+
+--- End of Zak language reference. The programming task follows. ---
+
+Task:
+{{task_prompt}}
+
+Function:
+{{function_name}}
+
+Inputs:
+{{inputs}}
+
+Output:
+{{output_type}}
+
+Write the solution in Zak.
+
+Return only the code required to solve the task.
+Do not include explanations or Markdown.
