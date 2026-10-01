@@ -6,3 +6,4 @@ Made by:
 
 - Guilherme Oliveira
 - Fernando Crespo Vazquez
+- Dylan Gharbaoui
