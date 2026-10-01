@@ -1,1 +1,0 @@
-Placeholder. The Python prompt template is added in SD-14.
