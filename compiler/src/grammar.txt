@@ -1,0 +1,177 @@
+// ZakLang (Zak) Core grammar, v0.1
+// Lark EBNF, intended for: Lark(grammar, parser="lalr", start="start")
+//
+// Design goals (from the design proposal, section 4.2):
+//   * as few output tokens as possible: no indentation, no `def`/`return`/`if`
+//     keywords, a single-character sigil for each construct
+//   * exactly one way to write each construct
+//   * no implicit type conversion; everything is statically typed
+//   * the whole spec (this cheat sheet plus examples) stays under ~1200 tokens
+//
+// ---------------------------------------------------------------------------
+// CHEAT SHEET (this is the part that goes into the model prompt)
+// ---------------------------------------------------------------------------
+//   Whitespace and newlines are ignored. There are no comments.
+//   Statements are separated by `;`. A statement that ends in `}` needs no `;`.
+//   Names are lowercase: [a-z_][a-z0-9_]*. Uppercase letters are reserved.
+//
+//   Types     I int   R float   B bool   S str   [T] array   {K:V} map (K is I or S)
+//   Literals  12  1.5  T  F  "txt"  [1,2]  {"a":1}  []  {}
+//
+//   @f(a:I,b:S)R{..}   function, return type required     def f(a: int, b: str) -> float:
+//   ^e                 return                              return e
+//   x:=e               declare, type inferred              x = e
+//   x:[I]=[]           declare with type (needed for empty [] and {})
+//   x=e  x+=e  x-=e  x*=e  x/=e  x%=e    reassign / update
+//   a<<e               append                              a.append(e)
+//   a[i]=e  m[k]=e     set element / map entry
+//   ?c{..}             if
+//   ?c{..}:?d{..}:{..} elif / else
+//   ~c{..}             while
+//   ~x:a{..}           for each element of array / char of str / key of map
+//   ~k,v:m{..}         for key, value in map               for k, v in m.items():
+//   ~i:0..n{..}        for i in range(0, n)
+//   !                  break
+//   >                  continue
+//
+//   Operators, lowest to highest precedence:
+//     c?a:b                          ternary
+//     |                              or
+//     &                              and
+//     !                              not
+//     == != < <= > >=   x@a          compare; `@` is membership (x in a)
+//     + -                            (+ also concatenates S and arrays)
+//     * / %                          (I/I is floor division; I and R never mix)
+//     -x  #x                         negate, length
+//     a[i]  a[i:j]  a[:j]  a[i:]  f(x)  I(x) R(x) S(x) B(x)
+//   [e~x:a]  [e~x:a?c]  [e~i:0..n]   array comprehension, optional filter
+//
+//   Builtins: abs min max sum srt rev keys vals pop del spl jn up lo out
+//     srt(a) returns a sorted copy; spl(s,d) splits; jn(a,d) joins;
+//     del(m,k) removes a key; pop(a) removes and returns the last item;
+//     out(x) prints.
+//
+// ---------------------------------------------------------------------------
+// EXAMPLES
+// ---------------------------------------------------------------------------
+//   @fib(n:I)I{?n<2{^n}^fib(n-1)+fib(n-2)}
+//
+//   @cnt(s:S){S:I}{m:{S:I}={};~w:spl(s," "){?w@m{m[w]+=1}:{m[w]=1}}^m}
+//
+//   @ok(o:[{S:I}],lim:I)[B]{^[x["q"]>0&x["p"]<=lim~x:o]}
+//
+//   @bs(a:[I],t:I)I{l:=0;h:=#a-1;~l<=h{m:=(l+h)/2;?a[m]==t{^m}:?a[m]<t{l=m+1}:{h=m-1}}^-1}
+//
+// Python equivalent of the `cnt` example, for scale:
+//   def cnt(s: str) -> dict[str, int]:
+//       m: dict[str, int] = {}
+//       for w in s.split(" "):
+//           if w in m:
+//               m[w] += 1
+//           else:
+//               m[w] = 1
+//       return m
+// ---------------------------------------------------------------------------
+
+start: seq
+
+// Statement sequence: every simple statement but the last one ends in `;`.
+// Compound statements (functions, ifs, loops) end in `}` and need no `;`.
+// A stray `;` after `}` (or at the very end) is tolerated so that a harmless
+// habit from C-like languages does not cost the model a repair attempt; the
+// cheat sheet only teaches the canonical form without it.
+seq: item* simple?
+?item: (fn | if_ | loop) ";"?
+     | simple ";"
+
+block: "{" seq "}"
+
+// ---- functions -----------------------------------------------------------
+fn: "@" NAME "(" [param ("," param)*] ")" type block
+param: NAME ":" type
+
+// ---- control flow --------------------------------------------------------
+if_: "?" expr block [":" (if_ | block)]
+
+loop: "~" expr block                          -> while_
+    | "~" NAME ["," NAME] ":" iter block      -> for_
+
+iter: sum [".." sum]
+
+// ---- simple statements ---------------------------------------------------
+?simple: NAME ":" [type] "=" expr             -> decl
+       | target aop expr                      -> assign
+       | target "<<" expr                     -> push
+       | "^" expr                             -> ret
+       | "!"                                  -> brk
+       | ">"                                  -> cont
+       | call
+
+target: NAME ("[" expr "]")*
+!aop: "=" | "+=" | "-=" | "*=" | "/=" | "%="
+
+// ---- types ---------------------------------------------------------------
+?type: prim
+     | "[" type "]"                           -> arr_t
+     | "{" type ":" type "}"                  -> map_t
+!prim: "I" | "R" | "B" | "S"
+
+// ---- expressions ---------------------------------------------------------
+?expr: tern
+
+?tern: or_
+     | or_ "?" tern ":" tern                  -> cond
+
+?or_: and_
+    | or_ "|" and_                            -> or_op
+
+?and_: not_
+     | and_ "&" not_                          -> and_op
+
+?not_: cmp
+     | "!" not_                               -> not_op
+
+?cmp: sum
+    | sum cmpop sum                           -> compare
+    | sum "@" sum                             -> member
+!cmpop: "==" | "!=" | "<" | "<=" | ">" | ">="
+
+?sum: prod
+    | sum addop prod                          -> binop
+!addop: "+" | "-"
+
+?prod: unary
+     | prod mulop unary                       -> binop
+!mulop: "*" | "/" | "%"
+
+?unary: post
+      | "-" unary                             -> neg
+      | "#" unary                             -> length
+
+?post: atom
+     | post "[" expr "]"                      -> index
+     | post "[" [expr] ":" [expr] "]"         -> slice
+
+?atom: INT                                    -> int_lit
+     | FLOAT                                  -> float_lit
+     | STRING                                 -> str_lit
+     | "T"                                    -> true
+     | "F"                                    -> false
+     | NAME                                   -> var
+     | call
+     | prim "(" expr ")"                      -> cast
+     | "[" [expr ("," expr)*] "]"             -> arr
+     | "{" [pair ("," pair)*] "}"             -> map
+     | "[" expr "~" NAME ":" iter ["?" expr] "]" -> comp
+     | "(" expr ")"
+
+call: NAME "(" [expr ("," expr)*] ")"
+pair: expr ":" expr
+
+// ---- terminals -----------------------------------------------------------
+NAME: /[a-z_][a-z0-9_]*/
+FLOAT: /\d+\.\d+/
+INT: /\d+/
+%import common.ESCAPED_STRING -> STRING
+
+%ignore /\s+/
