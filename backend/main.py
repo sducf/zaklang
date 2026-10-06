@@ -1,6 +1,6 @@
-import os 
-import httpx
+import os
 
+import httpx
 from fastapi import FastAPI, HTTPException
 
 app = FastAPI()
@@ -8,13 +8,14 @@ app = FastAPI()
 # Railway provides the GPU server address through an environment variable
 # This points to the Railtail service, which forwards request through
 # Tailscale to the RunPod GPU running llama.cpp - H
-GPU_API_URL = os.getenv("GPU_API_URL","").rstrip("/")
+GPU_API_URL = os.getenv("GPU_API_URL", "").rstrip("/")
+
 
 @app.get("/")
-
 def read_root():
     # Basic backend health/root route
     return {"message": "ZakLang"}
+
 
 @app.get("/gpu-health")
 async def gpu_health():
@@ -31,7 +32,6 @@ async def gpu_health():
         # Create an asynchronous HTTP client so the FastAPI server can
         # contact the remote GPU without blocking other backend requests -H
         async with httpx.AsyncClient(timeout=15.0) as client:
-
             # Send a health request through:
             # FastAPI -> Railtail -> Tailscale -> RunPod -> llama.cpp  -H
             response = await client.get(f"{GPU_API_URL}/health")
@@ -50,14 +50,14 @@ async def gpu_health():
             ) from exc
 
         return {
-            "gpu":"connected",
+            "gpu": "connected",
             "llama_server": llama_server,
         }
 
     except httpx.HTTPError as exc:
         raise HTTPException(
-            # Return a 502 error when the backend itself is running, 
+            # Return a 502 error when the backend itself is running,
             # but the remote GPU service cannot be reached successfully -H
             status_code=502,
-            detail=f"Could not reach GPU server: {exc}"
+            detail=f"Could not reach GPU server: {exc}",
         )
