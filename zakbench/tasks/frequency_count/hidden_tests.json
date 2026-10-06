@@ -1,0 +1,33 @@
+[
+  {
+    "inputs": [["apple", "banana", "apple"]],
+    "expected": {
+      "apple": 2,
+      "banana": 1
+    }
+  },
+  {
+    "inputs": [["a", "b", "c"]],
+    "expected": {
+      "a": 1,
+      "b": 1,
+      "c": 1
+    }
+  },
+  {
+    "inputs": [["x", "x", "x"]],
+    "expected": {
+      "x": 3
+    }
+  },
+  {
+    "inputs": [["dog"]],
+    "expected": {
+      "dog": 1
+    }
+  },
+  {
+    "inputs": [[]],
+    "expected": {}
+  }
+]

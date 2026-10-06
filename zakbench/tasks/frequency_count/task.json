@@ -1,0 +1,14 @@
+{
+  "id": "frequency_count",
+  "title": "Frequency Count",
+  "category": "maps",
+  "prompt": "Given an array of strings, return a map containing the number of times each string appears.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "items",
+      "type": "string[]"
+    }
+  ],
+  "outputType": "map<string, integer>"
+}
