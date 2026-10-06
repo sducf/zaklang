@@ -1,1 +1,18 @@
-Placeholder. The Python prompt template is added in SD-14.
+You are solving a programming task.
+
+Task:
+{{task_prompt}}
+
+Function:
+{{function_name}}
+
+Inputs:
+{{inputs}}
+
+Output:
+{{output_type}}
+
+Write the solution in Python.
+
+Return only the code required to solve the task.
+Do not include explanations or Markdown.
