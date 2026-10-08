@@ -3,6 +3,7 @@ import Layout from "@/components/Layout.tsx";
 import ExplorerPage from "@/pages/ExplorerPage.tsx";
 import LoginPage from "@/pages/LoginPage.tsx";
 import PlaygroundPage from "@/pages/PlaygroundPage.tsx";
+import DocsPage from "@/pages/DocsPage.tsx";
 
 export const router = createBrowserRouter([
     {
@@ -13,6 +14,8 @@ export const router = createBrowserRouter([
             { path: "playground", element: <PlaygroundPage /> },
             { path: "explorer", element: <ExplorerPage /> },
             { path: "login", element: <LoginPage /> },
+            { path: "docs", element: <DocsPage /> },
+            { path: "*", element: <Navigate to="/playground" replace /> },
         ],
     },
 ]);
