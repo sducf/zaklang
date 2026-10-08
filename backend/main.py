@@ -1,7 +1,9 @@
 import os
 
 import httpx
+
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -13,7 +15,7 @@ GPU_API_URL = os.getenv("GPU_API_URL", "").rstrip("/")
 
 @app.get("/")
 def read_root():
-    # Basic backend health/root route
+    # Basic backend health/root routegit status
     return {"message": "ZakLang"}
 
 
@@ -61,3 +63,13 @@ async def gpu_health():
             status_code=502,
             detail=f"Could not reach GPU server: {exc}",
         )
+
+FRONTEND_URL = os.getenv("FRONTEND_URL", "").rstrip("/")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[FRONTEND_URL] if FRONTEND_URL else [],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
