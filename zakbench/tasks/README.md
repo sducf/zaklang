@@ -8,7 +8,8 @@ Each task lives in its own folder named after the task id:
 tasks/
 └── array_sum/
     ├── task.json
-    └── hidden_tests.json
+    ├── hidden_tests.json
+    └── reference.zak
 ```
 
 `task.json` is the part the model is allowed to see. `hidden_tests.json` is the
@@ -47,6 +48,13 @@ Rules:
 
 Types are written the same way for every language so one definition works for
 both Zak and Python.
+
+`reference.zak` is a hand-written development solution defining the function
+named by `functionName`, with parameters in `inputs` order. The three sample
+tasks include these references as part of SD-35. They are not model prompt
+inputs. Grammar checks live in `compiler/tests/conformance`; proving they
+pass hidden tests requires the SD-32 compiler, SD-34 transpiler, and isolated
+execution service. SD-37 separately adds `reference.py` solutions.
 
 | Type                | Meaning                        |
 | ------------------- | ------------------------------ |

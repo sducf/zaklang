@@ -1,0 +1,1 @@
+@solve(text:S)B{left:=0;right:=#text-1;~left<right{?text[left]!=text[right]{^F}left+=1;right-=1}^T}

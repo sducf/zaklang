@@ -1,0 +1,1 @@
+@solve(items:[S]){S:I}{counts:{S:I}={};~item:items{?item@counts{counts[item]+=1}:{counts[item]=1}}^counts}
