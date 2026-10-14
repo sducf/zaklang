@@ -13,6 +13,8 @@ Table users {
 Table benchmark_runs {
   id integer [pk, increment]
 
+  user_id uuid [not null]
+
   task_id varchar(100) [not null, note: "References a ZakBench task ID"]
   language varchar(20) [not null, note: "Expected values: python or zak"]
   model_name varchar(255) [not null]
@@ -25,7 +27,6 @@ Table benchmark_runs {
   started_at timestamptz [not null]
   completed_at timestamptz
 }
-
 Table attempts {
   id integer [pk, increment]
 
@@ -77,3 +78,6 @@ Ref: attempts.run_id > benchmark_runs.id
 
 // Each attempt can have at most one evaluation. -H
 Ref: evaluations.attempt_id - attempts.id
+
+// One user can own many benchmark runs. -H
+Ref: benchmark_runs.user_id > users.id

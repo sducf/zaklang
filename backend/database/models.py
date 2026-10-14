@@ -46,6 +46,10 @@ class User(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+    # One user can own multiple benchmark runs. -H
+    benchmark_runs: Mapped[list["BenchmarkRun"]] = relationship(
+    back_populates="user",
+)
 
     # Prevent invalid role values from being stored in PostgreSQL. -H
     __table_args__ = (
@@ -62,6 +66,18 @@ class BenchmarkRun(Base):
     __tablename__ = "benchmark_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # Connects this benchmark run to the user who created it. -H
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey(
+            "users.id",
+            name="fk_benchmark_runs_user_id_users",
+        ),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship(
+        back_populates="benchmark_runs",
+    )
 
     # Matches the task id defined in ZakBench, such as "array_sum". -H
     task_id: Mapped[str] = mapped_column(

@@ -1,5 +1,5 @@
 from datetime import datetime
-
+from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 
@@ -30,6 +30,7 @@ class BenchmarkRunRead(BenchmarkRunBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    user_id: UUID
     status: str
     started_at: datetime
     completed_at: datetime | None = None
