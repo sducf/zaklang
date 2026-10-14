@@ -1,13 +1,59 @@
+from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 # Base class used by SQLAlchemy for all database models. -H
 class Base(DeclarativeBase):
     pass
+# Stores application users for authentication and authorization. -H
+class User(Base):
+    __tablename__ = "users"
 
+    # UUID keeps user identifiers independent from sequential database IDs. -H
+    id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
+
+    # Email is used as the unique account identifier. -H
+    email: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        unique=True,
+    )
+
+    # Stores the hashed password only.
+    # Plain-text passwords must never be stored in the database. -H
+    password_hash: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    # Application authorization role.
+    # Allowed values are viewer, member, and admin. -H
+    role: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="member",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    # Prevent invalid role values from being stored in PostgreSQL. -H
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('viewer', 'member', 'admin')",
+            name="ck_users_role",
+        ),
+    )
 
 # Stores one complete benchmark experiment.
 # A benchmark run represents one task tested in one language

@@ -1,0 +1,71 @@
+// ZakLang PostgreSQL schema visualization.
+// SQLAlchemy models in models.py remain the application source of truth. -H
+
+
+Table users {
+  id uuid [pk]
+  email varchar(255) [not null, unique]
+  password_hash varchar(255) [not null]
+  role varchar(20) [not null, note: "Allowed values: viewer, member, admin. Application default: member"]
+  created_at timestamptz [not null]
+}
+
+Table benchmark_runs {
+  id integer [pk, increment]
+
+  task_id varchar(100) [not null, note: "References a ZakBench task ID"]
+  language varchar(20) [not null, note: "Expected values: python or zak"]
+  model_name varchar(255) [not null]
+
+  temperature float
+  max_tokens integer
+
+  status varchar(50) [not null, note: "Application default: pending"]
+
+  started_at timestamptz [not null]
+  completed_at timestamptz
+}
+
+Table attempts {
+  id integer [pk, increment]
+
+  run_id integer [not null]
+  attempt_number integer [not null]
+
+  prompt_text text [not null]
+  generated_code text [not null]
+
+  prompt_tokens integer
+  completion_tokens integer
+  total_tokens integer
+
+  finish_reason varchar(100)
+  latency_ms float
+
+  created_at timestamptz [not null]
+}
+
+Table evaluations {
+  id integer [pk, increment]
+
+  attempt_id integer [not null, unique]
+
+  compile_success boolean
+  compiler_output text
+  transpiled_code text
+
+  tests_passed integer
+  tests_total integer
+  correct boolean
+
+  execution_ms float
+
+  created_at timestamptz [not null]
+}
+
+
+// One benchmark run can contain many generation attempts. -H
+Ref: attempts.run_id > benchmark_runs.id
+
+// Each attempt can have at most one evaluation. -H
+Ref: evaluations.attempt_id - attempts.id
