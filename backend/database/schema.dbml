@@ -43,6 +43,14 @@ Table attempts {
   latency_ms float
 
   created_at timestamptz [not null]
+
+  checks {
+    `attempt_number >= 1` [name: 'ck_attempts_attempt_number_positive']
+  }
+
+  indexes {
+    (run_id, attempt_number) [unique, name: 'uq_attempts_run_id_attempt_number']
+  }
 }
 
 Table evaluations {

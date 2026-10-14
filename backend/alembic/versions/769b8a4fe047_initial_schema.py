@@ -55,8 +55,10 @@ def upgrade() -> None:
     sa.Column('finish_reason', sa.String(length=100), nullable=True),
     sa.Column('latency_ms', sa.Float(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint('attempt_number >= 1', name='ck_attempts_attempt_number_positive'),
     sa.ForeignKeyConstraint(['run_id'], ['benchmark_runs.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('run_id', 'attempt_number', name='uq_attempts_run_id_attempt_number')
     )
     op.create_table('evaluations',
     sa.Column('id', sa.Integer(), nullable=False),
