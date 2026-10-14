@@ -19,6 +19,20 @@ The current schema includes:
 - `attempts`
 - `evaluations`
 
+## API Layout
+
+FastAPI route modules live under `api/routes/`:
+
+- `api/routes/testing.py` contains the root and GPU connectivity routes.
+- `api/routes/auth.py` reserves the registration, login, and current-user
+  endpoints.
+- `api/controllers/` contains route-adjacent application behavior. The GPU
+  health controller is the first extracted implementation; auth controllers
+  will be added with the authentication service.
+- `main.py` only creates the application, configures CORS, and registers
+  routers. Database access and authentication services should be added behind
+  the route layer rather than directly in `main.py`.
+
 A human-readable DBML representation of the schema is available at:
 
 ```text
