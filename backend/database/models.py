@@ -1,7 +1,7 @@
 from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Integer, String, Text, Uuid
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -122,6 +122,17 @@ class BenchmarkRun(Base):
 # Attempt 1 is the initial generation and later attempts can be repairs. -H
 class Attempt(Base):
     __tablename__ = "attempts"
+    __table_args__ = (
+        CheckConstraint(
+            "attempt_number >= 1",
+            name="ck_attempts_attempt_number_positive",
+        ),
+        UniqueConstraint(
+            "run_id",
+            "attempt_number",
+            name="uq_attempts_run_id_attempt_number",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
