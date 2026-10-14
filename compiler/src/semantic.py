@@ -230,8 +230,21 @@ class _Checker:
                 self.fail(node, "TYPE_MISMATCH", "Negation requires I or R.")
             return type_
         if isinstance(node, a.Binary):
-            left = self.value(node.left)
-            right = self.value(node.right)
+            if node.operator == "@":
+                left = self.value(node.left)
+                right = self.value(node.right)
+                return self.binary(node, left, node.operator, right)
+            context = expected if node.operator == "+" else None
+            try:
+                left = self.value(node.left, context)
+            except _Invalid as error:
+                if error.error.code != "CANNOT_INFER_TYPE":
+                    raise
+                # A typed right operand can establish the empty left type.
+                right = self.value(node.right, context)
+                left = self.value(node.left, right)
+            else:
+                right = self.value(node.right, left)
             return self.binary(node, left, node.operator, right)
         if isinstance(node, a.Conditional):
             self.value(node.condition, a.B)
@@ -301,6 +314,10 @@ class _Checker:
             self.fail(node, "UNDEFINED_NAME", f"Undefined function '{node.name}'.")
         name = node.name
         self.arity(node, 2 if name in ("min", "max", "spl", "jn", "del") else 1)
+        if name == "jn":
+            self.value(node.arguments[0], a.ArrayType(a.S))
+            self.value(node.arguments[1], a.S)
+            return a.S
         first = self.value(node.arguments[0])
         if name == "out":
             return a.VOID
@@ -323,10 +340,6 @@ class _Checker:
                 self.value(node.arguments[1], first.key)
                 return a.VOID
             return a.ArrayType(first.key if name == "keys" else first.value)
-        if name == "jn":
-            self.expect(node.arguments[0], first, a.ArrayType(a.S))
-            self.value(node.arguments[1], a.S)
-            return a.S
         if not isinstance(first, a.ArrayType):
             self.fail(node, "TYPE_MISMATCH", f"'{name}' requires an array.")
         if name == "sum":

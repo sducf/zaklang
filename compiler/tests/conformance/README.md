@@ -40,13 +40,19 @@ python3 -m venv .venv
 `test_fixtures.py` loads the real grammar with Lark's LALR parser, parses every
 program and reference, checks fixture pairing, checks SD1 syntax coverage,
 and verifies reference function/parameter names against task metadata.
-These are grammar checks, not semantic or execution checks. Expected stdout
-has not yet been verified by the Zak compiler.
+These are grammar checks. SD-32's `test_semantic.py` and `test_compile.py`
+add static checks for all 15 programs and all three references. Expected
+stdout has not yet been verified by execution. To check the files directly:
 
-## Remaining work after SD-32 and SD-34
+```sh
+.venv/bin/python -m compiler.src compiler/tests/conformance zakbench/tasks
+```
 
-The checkout currently has no `compile(source)` implementation, AST interface,
-or `transpile(program)` implementation. Once those dependencies land:
+## Remaining work after SD-34 and isolated execution support
+
+SD-32 provides `compiler.src.compile(source)` and a dataclass AST. The
+checkout still has no `transpile(program)` implementation. Once the
+transpiler and isolated execution dependencies land:
 
 1. Add `test_conformance.py` to compile every program, assert compilation
    succeeds, and transpile its AST.

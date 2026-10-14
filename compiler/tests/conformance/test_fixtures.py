@@ -1,4 +1,4 @@
-"""Check SD-35 fixtures against the grammar while SD-32/SD-34 are pending.
+"""Check SD-35 fixture structure and syntax independently of compiler semantics.
 
 These checks do not compile, transpile, or execute Zak programs.
 """

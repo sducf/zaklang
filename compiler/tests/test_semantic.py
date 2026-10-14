@@ -104,3 +104,28 @@ def test_checks_independent_statements_after_error():
     errors = check(parse('out(x);out(y)'))
     assert len(errors) == 2
     assert [e.col for e in errors] == [5, 12]
+
+
+@pytest.mark.parametrize("source", [
+    'a:[I]=[1]+[]',
+    'a:[I]=[]+[1]',
+    'a:[[I]]=[]+[[]]',
+    'a:[I]=[];out(a==[])',
+    'a:[I]=[];out([]==a)',
+    'a:=[1]+[]',
+    'a:=[]+[1]',
+    'out(jn([],","))',
+])
+def test_empty_arrays_use_context_from_operators_and_builtin_signatures(source):
+    assert check(parse(source)) == []
+
+
+@pytest.mark.parametrize("source", [
+    'a:[I]=[1]+[T]',
+    'a:[I]=[]+["wrong"]',
+    'a:=[1];out(a==[T])',
+    'out(jn([1],","))',
+])
+def test_contextual_inference_preserves_strict_element_types(source):
+    errors = check(parse(source))
+    assert any(error.code == 'TYPE_MISMATCH' for error in errors)
