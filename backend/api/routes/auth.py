@@ -1,33 +1,42 @@
-"""Authentication route surface.
+"""Authentication HTTP routes."""
 
-Handlers remain intentionally unimplemented until the database-backed auth
-service, password hashing, and token strategy are agreed upon.
-"""
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
 
-from typing import NoReturn
-
-from fastapi import APIRouter, HTTPException
+from api.controllers.auth import (
+    get_current_user_controller,
+    login_controller,
+    register_controller,
+)
+from api.schemas.auth import LoginRequest, TokenResponse, UserResponse
+from database.db import get_db
+from database.models import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-def not_implemented() -> NoReturn:
-    raise HTTPException(
-        status_code=501,
-        detail="Authentication is not implemented yet",
-    )
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def register(
+    payload: LoginRequest,
+    db: Session = Depends(get_db),
+) -> UserResponse:
+    return register_controller(payload, db)
 
 
-@router.post("/register", status_code=501, response_model=None)
-def register() -> NoReturn:
-    not_implemented()
+@router.post("/login", response_model=TokenResponse)
+def login(
+    payload: LoginRequest,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    return login_controller(payload, db)
 
 
-@router.post("/login", status_code=501, response_model=None)
-def login() -> NoReturn:
-    not_implemented()
-
-
-@router.get("/me", status_code=501, response_model=None)
-def get_current_user() -> NoReturn:
-    not_implemented()
+@router.get("/me", response_model=UserResponse)
+def get_current_user(
+    user: User = Depends(get_current_user_controller),
+) -> UserResponse:
+    return user
