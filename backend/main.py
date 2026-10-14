@@ -1,7 +1,11 @@
 import os
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Load local settings without overriding variables injected by production.
+load_dotenv(override=False)
 
 from api.routes.auth import router as auth_router
 from api.routes.testing import router as testing_router

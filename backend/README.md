@@ -65,6 +65,25 @@ User accounts are stored separately in the `users` table.
 
 Database credentials must not be committed to the repository.
 
+For local development, `python-dotenv` loads variables from `backend/.env`.
+Production variables supplied by Railway take precedence because the loader
+does not override existing process environment variables. The local file uses
+SQLite by default, so a local PostgreSQL server is not required.
+
+Install dependencies from the `backend/` directory (virtual env active):
+
+```bash
+pip install -r requirements.txt
+```
+
+Start the API locally:
+
+```bash
+uvicorn main:app --reload
+```
+
+Open the API documentation at `http://127.0.0.1:8000/docs`.
+
 The backend and Alembic read the database connection from:
 
 ```text
