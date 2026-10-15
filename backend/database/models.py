@@ -108,12 +108,12 @@ class BenchmarkRun(Base):
         nullable=True,
     )
 
-    # Tracks the current state of the run.
-    # Examples: pending, running, completed, failed. -H
+    # Tracks the current public API state of the run. -H
+    # Examples: queued, running, passed, failed, error, timeout
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        default="pending",
+        default="queued",
     )
 
     started_at: Mapped[datetime] = mapped_column(

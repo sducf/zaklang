@@ -86,6 +86,51 @@ uvicorn main:app --reload
 
 Open the API documentation at `http://127.0.0.1:8000/docs`.
 
+## Benchmark API Contract
+
+The benchmark routes are contract-only stubs and appear in FastAPI docs with
+their request and response models. Endpoint behavior is implemented separately.
+
+`GET /runs/{id}` returns a run aggregate. Token counts and latency are totals
+across attempts; test counts belong to the individual attempt that produced
+them and are not summed at run level:
+
+```json
+{
+  "id": 42,
+  "task_id": "array_sum",
+  "language": "zak",
+  "status": "passed",
+  "attempts_used": 2,
+  "prompt_tokens_total": 2200,
+  "completion_tokens_total": 74,
+  "total_tokens": 2274,
+  "latency_ms_total": 4210,
+  "attempts": [
+    {
+      "index": 1,
+      "compile_ok": false,
+      "compile_errors": [
+        { "line": 4, "col": 8, "code": "E001", "message": "Unexpected token" }
+      ],
+      "transpiled_python": null,
+      "tests_passed": null,
+      "tests_total": null,
+      "exec_outcome": "compile_error"
+    },
+    {
+      "index": 2,
+      "compile_ok": true,
+      "compile_errors": [],
+      "transpiled_python": "def solve(nums):\\n    return sum(nums)",
+      "tests_passed": 3,
+      "tests_total": 3,
+      "exec_outcome": "pass"
+    }
+  ]
+}
+```
+
 The backend and Alembic read the database connection from:
 
 ```text
