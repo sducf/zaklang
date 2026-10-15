@@ -1,6 +1,8 @@
 """Contract-only benchmark routes."""
 
-from fastapi import APIRouter, HTTPException, status
+from typing import NoReturn
+
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 
 from api.schemas.benchmark import (
     CompileRequest,
@@ -8,13 +10,16 @@ from api.schemas.benchmark import (
     RunCreateRequest,
     RunListItem,
     RunResponse,
+    TASK_ID_PATTERN,
     TaskResponse,
 )
+from api.controllers.auth import get_current_user_controller
+from database.models import User
 
 router = APIRouter(tags=["benchmark"])
 
 
-def _not_implemented() -> None:
+def _not_implemented() -> NoReturn:
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="Benchmark endpoint behavior is not implemented yet",
@@ -27,7 +32,9 @@ def list_tasks() -> list[TaskResponse]:
 
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
-def get_task(task_id: str) -> TaskResponse:
+def get_task(
+    task_id: str = Path(pattern=TASK_ID_PATTERN),
+) -> TaskResponse:
     _not_implemented()
 
 
@@ -41,15 +48,23 @@ def compile_source(payload: CompileRequest) -> CompileResponse:
     response_model=RunResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-def create_run(payload: RunCreateRequest) -> RunResponse:
+def create_run(
+    payload: RunCreateRequest,
+    user: User = Depends(get_current_user_controller),
+) -> RunResponse:
     _not_implemented()
 
 
 @router.get("/runs/{run_id}", response_model=RunResponse)
-def get_run(run_id: int) -> RunResponse:
+def get_run(
+    run_id: int,
+    user: User = Depends(get_current_user_controller),
+) -> RunResponse:
     _not_implemented()
 
 
 @router.get("/runs", response_model=list[RunListItem])
-def list_runs() -> list[RunListItem]:
+def list_runs(
+    user: User = Depends(get_current_user_controller),
+) -> list[RunListItem]:
     _not_implemented()
