@@ -109,6 +109,11 @@ them and are not summed at run level:
   "attempts": [
     {
       "index": 1,
+      "completion_text": "generated Zak source",
+      "prompt_tokens": 1100,
+      "completion_tokens": 36,
+      "total_tokens": 1136,
+      "latency_ms": 2140,
       "compile_ok": false,
       "compile_errors": [
         { "line": 4, "col": 8, "code": "E001", "message": "Unexpected token" }
@@ -120,6 +125,11 @@ them and are not summed at run level:
     },
     {
       "index": 2,
+      "completion_text": "def solve(nums):\n    return sum(nums)",
+      "prompt_tokens": 1100,
+      "completion_tokens": 38,
+      "total_tokens": 1138,
+      "latency_ms": 2070,
       "compile_ok": true,
       "compile_errors": [],
       "transpiled_python": "def solve(nums):\\n    return sum(nums)",

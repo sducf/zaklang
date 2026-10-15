@@ -58,7 +58,14 @@ class RunCreateRequest(BaseModel):
 
 
 class AttemptResponse(BaseModel):
+    """Public result and resource-usage details for one generation attempt."""
+
     index: int = Field(ge=1)
+    completion_text: str
+    prompt_tokens: int | None = Field(default=None, ge=0)
+    completion_tokens: int | None = Field(default=None, ge=0)
+    total_tokens: int | None = Field(default=None, ge=0)
+    latency_ms: float | None = Field(default=None, ge=0)
     compile_ok: bool | None
     compile_errors: list[CompilerError]
     transpiled_python: str | None
@@ -68,11 +75,14 @@ class AttemptResponse(BaseModel):
 
 
 class RunResponse(BaseModel):
+    """Aggregate result for a run, including its individual attempts."""
+
     id: int
     task_id: str
     language: Language
     status: RunStatus
     attempts_used: int = Field(ge=0)
+    # These totals are derived across attempts; per-attempt values stay nested.
     prompt_tokens_total: int = Field(ge=0)
     completion_tokens_total: int = Field(ge=0)
     total_tokens: int = Field(ge=0)
