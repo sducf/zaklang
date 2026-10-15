@@ -19,6 +19,17 @@ class RunStatus(str, Enum):
     TIMEOUT = "timeout"
 
 
+class ExecutionOutcome(str, Enum):
+    """Outcome of executing one generated attempt."""
+
+    PASS = "pass"
+    FAIL = "fail"
+    TIMEOUT = "timeout"
+    OOM = "oom"
+    CRASH = "crash"
+    NOT_RUN = "not_run"
+
+
 class TaskInput(BaseModel):
     name: str
     type: str
@@ -71,7 +82,7 @@ class AttemptResponse(BaseModel):
     transpiled_python: str | None
     tests_passed: int | None = Field(default=None, ge=0)
     tests_total: int | None = Field(default=None, ge=0)
-    exec_outcome: str | None
+    exec_outcome: ExecutionOutcome | None
 
 
 class RunResponse(BaseModel):

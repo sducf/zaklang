@@ -121,7 +121,7 @@ them and are not summed at run level:
       "transpiled_python": null,
       "tests_passed": null,
       "tests_total": null,
-      "exec_outcome": "compile_error"
+      "exec_outcome": "not_run"
     },
     {
       "index": 2,
