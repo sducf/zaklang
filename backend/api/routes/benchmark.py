@@ -1,6 +1,6 @@
 """Contract-only benchmark routes."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from api.schemas.benchmark import (
     CompileRequest,
@@ -10,6 +10,8 @@ from api.schemas.benchmark import (
     RunResponse,
     TaskResponse,
 )
+from api.controllers.auth import get_current_user_controller
+from database.models import User
 
 router = APIRouter(tags=["benchmark"])
 
@@ -41,15 +43,23 @@ def compile_source(payload: CompileRequest) -> CompileResponse:
     response_model=RunResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-def create_run(payload: RunCreateRequest) -> RunResponse:
+def create_run(
+    payload: RunCreateRequest,
+    user: User = Depends(get_current_user_controller),
+) -> RunResponse:
     _not_implemented()
 
 
 @router.get("/runs/{run_id}", response_model=RunResponse)
-def get_run(run_id: int) -> RunResponse:
+def get_run(
+    run_id: int,
+    user: User = Depends(get_current_user_controller),
+) -> RunResponse:
     _not_implemented()
 
 
 @router.get("/runs", response_model=list[RunListItem])
-def list_runs() -> list[RunListItem]:
+def list_runs(
+    user: User = Depends(get_current_user_controller),
+) -> list[RunListItem]:
     _not_implemented()
