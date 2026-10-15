@@ -1,0 +1,1 @@
+s:="level";out(#s);out(s[0]);out(s[1:4]);?s[0]==s[4]{out(1)}:{out(0)}

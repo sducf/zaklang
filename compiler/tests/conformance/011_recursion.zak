@@ -1,0 +1,1 @@
+@fact(n:I)I{?n<2{^1}^n*fact(n-1)}out(fact(0));out(fact(5))

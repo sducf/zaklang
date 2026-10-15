@@ -1,0 +1,131 @@
+"""Static checks over real syntax trees, including the SD-35 corpus."""
+
+from pathlib import Path
+
+import pytest
+
+from compiler.src.parser import parse
+from compiler.src.semantic import check
+
+
+ROOT = Path(__file__).resolve().parents[2]
+VALID_FILES = sorted((ROOT / "compiler/tests/conformance").glob("*.zak")) + sorted((ROOT / "zakbench/tasks").glob("*/reference.zak"))
+
+
+@pytest.mark.parametrize("path", VALID_FILES, ids=lambda p: p.stem if p.name != "reference.zak" else p.parent.name)
+def test_corpus_compiles(path):
+    assert check(parse(path.read_text())) == []
+
+
+@pytest.mark.parametrize("source", [
+    '@f(n:I)I{?n==0{^0}^g(n-1)}@g(n:I)I{^f(n)}out(f(2))',
+    'x:I=I(2.0);y:R=R(x);s:S=S(y);b:B=B(s)',
+    'a:[[I]]=[[]];m:{S:[I]}={"x":[]};a[0]<<1;m["x"]<<2',
+    '@f(a:[I])[I]{^a}x:=f([])',
+    '@f()[I]{^[]}out(f())',
+    'a:[I]=[];a=srt(a);a=rev(a);out(sum(a));out(min(1,2));out(max(1.0,2.0));out(abs(-2))',
+    'm:{S:I}={"a":1};out(keys(m));out(vals(m));del(m,"a")',
+    'a:=[1];out(pop(a));out(jn(spl("a b"," "),","));out(up(lo("ABC")))',
+    '@f(x:B)I{?x{^1}:{^2}}out(f(T))',
+    'x:=0;?T{x=1;y:=2}~i:0..2{x+=i}out(x)',
+    '~c:"abc"{out(c)}m:{I:S}={1:"a"};~k:m{out(k)}~k,v:m{out(v)}',
+    'a:[I]=[];?T{a=[]}a<<2',
+])
+def test_valid_semantics(source):
+    assert check(parse(source)) == []
+
+
+@pytest.mark.parametrize("source,code", [
+    ('out(missing)', 'UNDEFINED_NAME'),
+    ('x:=1;x:=2', 'DUPLICATE_NAME'),
+    ('@f(x:I)I{^x}out(f())', 'CALL_ARITY'),
+    ('@f(x:I)I{^x}out(f(T))', 'TYPE_MISMATCH'),
+    ('x:=1+2.0', 'TYPE_MISMATCH'),
+    ('x:I=T', 'TYPE_MISMATCH'),
+    ('x:B=1', 'TYPE_MISMATCH'),
+    ('m:{B:I}={}', 'INVALID_TYPE'),
+    ('s:="abc";s[0]="z"', 'INVALID_TARGET'),
+    ('@f()I{^"x"}', 'TYPE_MISMATCH'),
+    ('@f(x:B)I{?x{^1}}', 'MISSING_RETURN'),
+    ('@f()I{~T{^1}}', 'MISSING_RETURN'),
+    ('^1', 'INVALID_CONTROL_FLOW'),
+    ('!', 'INVALID_CONTROL_FLOW'),
+    ('>', 'INVALID_CONTROL_FLOW'),
+    ('?T{x:=1}out(x)', 'UNDEFINED_NAME'),
+    ('~i:0..2{out(i)}out(i)', 'UNDEFINED_NAME'),
+    ('@f()I{^x}x:=1', 'UNDEFINED_NAME'),
+    ('x:=[]', 'CANNOT_INFER_TYPE'),
+    ('m:={}', 'CANNOT_INFER_TYPE'),
+    ('a:=[1,"x"]', 'TYPE_MISMATCH'),
+    ('m:{S:I}={};out(m[1])', 'TYPE_MISMATCH'),
+    ('a:=[1];a<<T', 'TYPE_MISMATCH'),
+    ('a:=[1];a[0]="x"', 'TYPE_MISMATCH'),
+    ('a:=[1];out(a["x"]);', 'TYPE_MISMATCH'),
+    ('a:=[1];out(a[:T])', 'TYPE_MISMATCH'),
+    ('?1{out(1)}', 'TYPE_MISMATCH'),
+    ('~i:0..2.0{out(i)}', 'TYPE_MISMATCH'),
+    ('~k,v:[1]{out(k)}', 'INVALID_ITERATION'),
+    ('~i:1{out(i)}', 'INVALID_ITERATION'),
+    ('out(1@"abc")', 'TYPE_MISMATCH'),
+    ('out(#1)', 'TYPE_MISMATCH'),
+    ('out(-T)', 'TYPE_MISMATCH'),
+    ('out(T+F)', 'TYPE_MISMATCH'),
+    ('out(T<F)', 'TYPE_MISMATCH'),
+    ('x:=out(1)', 'VOID_VALUE'),
+    ('out(unknown())', 'UNDEFINED_NAME'),
+    ('out(abs("x"))', 'TYPE_MISMATCH'),
+    ('out(spl("x"))', 'CALL_ARITY'),
+    ('out(pop("x"))', 'TYPE_MISMATCH'),
+    ('out(sum([T]))', 'TYPE_MISMATCH'),
+    ('out(keys([1]))', 'TYPE_MISMATCH'),
+    ('out(jn([1],","))', 'TYPE_MISMATCH'),
+    ('out(I([1]))', 'TYPE_MISMATCH'),
+    ('a:=[x~x:[1]]', 'UNSUPPORTED_FEATURE'),
+    ('@f()I{@g()I{^1}^1}', 'UNSUPPORTED_FEATURE'),
+    ('~i:0..1{@f()I{!;^1}}', 'UNSUPPORTED_FEATURE'),
+    ('out:=1', 'RESERVED_NAME'),
+    ('@sum()I{^1}', 'RESERVED_NAME'),
+    ('@f(x:I,x:I)I{^x}', 'DUPLICATE_NAME'),
+    ('~k,k:{"a":1}{out(k)}', 'DUPLICATE_NAME'),
+])
+def test_rejects_invalid_semantics(source, code):
+    errors = check(parse(source))
+    assert errors, source
+    assert code in [error.code for error in errors], errors
+    assert all(error.line >= 1 and error.col >= 1 and error.message for error in errors)
+
+
+def test_diagnostic_points_at_undefined_expression():
+    errors = check(parse('x:=1;\nout(unknown)'))
+    assert (errors[0].line, errors[0].col, errors[0].code) == (2, 5, 'UNDEFINED_NAME')
+
+
+def test_checks_independent_statements_after_error():
+    errors = check(parse('out(x);out(y)'))
+    assert len(errors) == 2
+    assert [e.col for e in errors] == [5, 12]
+
+
+@pytest.mark.parametrize("source", [
+    'a:[I]=[1]+[]',
+    'a:[I]=[]+[1]',
+    'a:[[I]]=[]+[[]]',
+    'a:[I]=[];out(a==[])',
+    'a:[I]=[];out([]==a)',
+    'a:=[1]+[]',
+    'a:=[]+[1]',
+    'out(jn([],","))',
+])
+def test_empty_arrays_use_context_from_operators_and_builtin_signatures(source):
+    assert check(parse(source)) == []
+
+
+@pytest.mark.parametrize("source", [
+    'a:[I]=[1]+[T]',
+    'a:[I]=[]+["wrong"]',
+    'a:=[1];out(a==[T])',
+    'out(jn([1],","))',
+])
+def test_contextual_inference_preserves_strict_element_types(source):
+    errors = check(parse(source))
+    assert any(error.code == 'TYPE_MISMATCH' for error in errors)

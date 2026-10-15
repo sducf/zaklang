@@ -1,0 +1,1 @@
+m:{S:I}={};m["a"]=2;m["a"]+=3;m["b"]=4;?"a"@m{out(m["a"])}total:=0;~k,v:m{total+=v}out(total)

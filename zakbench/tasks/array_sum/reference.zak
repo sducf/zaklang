@@ -1,0 +1,1 @@
+@solve(nums:[I])I{total:=0;~n:nums{total+=n}^total}
