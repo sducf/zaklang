@@ -108,8 +108,7 @@ class BenchmarkRun(Base):
         nullable=True,
     )
 
-    # Tracks the current state of the run.
-    # Examples: pending, running, completed, failed. -H
+    # Tracks the current public API state of the run. -H
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
