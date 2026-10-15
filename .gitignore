@@ -2,6 +2,7 @@
 *.Identifier
 
 *.env
+*.db
 package-lock.json
 *.lock
 
