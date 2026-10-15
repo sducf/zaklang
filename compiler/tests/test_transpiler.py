@@ -12,12 +12,14 @@ from compiler.src.parser import parse
 
 
 def emitted(source):
+    """Compile and emit a trusted example, failing the test on static errors."""
     result = compile(source)
     assert result.ok and result.ast is not None, result.errors
     return transpile(result.ast)
 
 
 def run_trusted(source, tmp_path):
+    """Run emitted test code in a fresh child process with a five-second limit."""
     path = tmp_path / 'program.py'
     path.write_text(emitted(source), encoding='utf-8')
     result = subprocess.run([sys.executable, '-I', str(path)], cwd=tmp_path,

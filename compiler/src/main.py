@@ -16,6 +16,7 @@ from .semantic import check
 
 
 def _failure(code: str, message: str, line: int = 1, col: int = 1) -> CompileResult:
+    """Create an unsuccessful result with coordinates clamped to one-based values."""
     return CompileResult(False, None, [CompileError(max(1, line), max(1, col), code, message)])
 
 

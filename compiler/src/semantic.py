@@ -24,6 +24,7 @@ class AnalysisResult:
 
 
 def type_name(type_: a.Type) -> str:
+    """Format nested types using Zak notation for diagnostic messages."""
     if isinstance(type_, a.ArrayType):
         return f"[{type_name(type_.element)}]"
     if isinstance(type_, a.MapType):
@@ -32,11 +33,14 @@ def type_name(type_: a.Type) -> str:
 
 
 class _Invalid(Exception):
+    """Unwind one failed statement while preserving its located diagnostic."""
     def __init__(self, error: CompileError):
         self.error = error
 
 
 class _Checker:
+    """Track lexical types and validate each independent statement in a program."""
+
     def __init__(self):
         self.errors: list[CompileError] = []
         self.expression_types: dict[int, a.Type] = {}
@@ -46,13 +50,16 @@ class _Checker:
         self.loop_depth = 0
 
     def fail(self, node: a.Node, code: str, message: str) -> NoReturn:
+        """Stop the current check with an error at the responsible AST node."""
         raise _Invalid(CompileError(node.span.line, node.span.col, code, message))
 
     def expect(self, node: a.Node, actual: a.Type, expected: a.Type):
+        """Require exact type equality; Zak never inserts implicit conversions."""
         if actual != expected:
             self.fail(node, "TYPE_MISMATCH", f"Expected {type_name(expected)}, got {type_name(actual)}.")
 
     def validate_type(self, node: a.Node, type_: a.Type):
+        """Validate nested container annotations, including the I/S map-key rule."""
         if isinstance(type_, a.ArrayType):
             self.validate_type(node, type_.element)
         elif isinstance(type_, a.MapType):
@@ -61,6 +68,7 @@ class _Checker:
             self.validate_type(node, type_.value)
 
     def bind(self, node: a.Node, name: str, type_: a.Type):
+        """Declare a lexical binding, rejecting duplicates and reserved function names."""
         if name in BUILTINS or name in self.functions:
             self.fail(node, "RESERVED_NAME", f"'{name}' is a function name.")
         if name in self.scopes[-1]:
@@ -68,12 +76,18 @@ class _Checker:
         self.scopes[-1][name] = type_
 
     def lookup(self, node: a.Node, name: str) -> a.Type:
+        """Find the nearest visible variable type or report an undefined name."""
         for scope in reversed(self.scopes):
             if name in scope:
                 return scope[name]
         self.fail(node, "UNDEFINED_NAME", f"Undefined name '{name}'.")
 
     def block(self, statements: tuple[a.Statement, ...], *, child: bool = True):
+        """Check a block and retain errors from independently checkable statements.
+
+        A child scope is discarded even on failure. Function and loop callers
+        can reuse the scope they already created by passing ``child=False``.
+        """
         if child:
             self.scopes.append({})
         try:
@@ -87,6 +101,7 @@ class _Checker:
                 self.scopes.pop()
 
     def statement(self, node: a.Statement):
+        """Validate a statement's types, bindings, and control-flow context."""
         if isinstance(node, a.Declaration):
             if node.declared_type is not None:
                 self.validate_type(node, node.declared_type)
@@ -139,6 +154,11 @@ class _Checker:
             self.fail(node, "UNSUPPORTED_FEATURE", "Unsupported statement.")
 
     def function(self, node: a.Function):
+        """Check parameter scope, return types, and guaranteed return paths.
+
+        Functions cannot inherit loop permissions from their definition site;
+        their return/loop context is restored after the body is checked.
+        """
         if len(self.scopes) != 1 or self.return_type is not None:
             self.fail(node, "UNSUPPORTED_FEATURE", "Functions must be declared at top level.")
         self.validate_type(node, node.return_type)
@@ -157,6 +177,10 @@ class _Checker:
             self.return_type, self.loop_depth = saved_return, saved_loop
 
     def returns(self, statements: tuple[a.Statement, ...]) -> bool:
+        """Conservatively prove return via a return statement or both if branches.
+
+        Loops are not proof: their execution or termination is not guaranteed.
+        """
         for node in statements:
             if isinstance(node, a.Return):
                 return True
@@ -165,6 +189,7 @@ class _Checker:
         return False
 
     def iteration(self, node: a.Iteration, count: int) -> tuple[a.Type, ...]:
+        """Validate an iterable/range and derive the loop-variable types."""
         if node.stop is not None:
             self.value(node.start, a.I)
             self.value(node.stop, a.I)
@@ -184,6 +209,7 @@ class _Checker:
         return types
 
     def target(self, node: a.Name | a.Index) -> a.Type:
+        """Check a variable-rooted writable target and record its resolved type."""
         if isinstance(node, a.Name):
             type_ = self.lookup(node, node.name)
         else:
@@ -197,6 +223,7 @@ class _Checker:
         return type_
 
     def index(self, node: a.Index, collection: a.Type) -> a.Type:
+        """Check the index/key type and return the selected value's static type."""
         if isinstance(collection, a.MapType):
             self.value(node.index, collection.key)
             return collection.value
@@ -209,6 +236,11 @@ class _Checker:
         self.fail(node, "TYPE_MISMATCH", "Indexing requires an array, string, or map.")
 
     def value(self, node: a.Expression, expected: a.Type | None = None) -> a.Type:
+        """Check a value expression, reject void, and retain its inferred type.
+
+        Expected types provide context for empty containers and typed calls;
+        they constrain inference rather than authorizing type conversion.
+        """
         type_ = self.expression(node, expected)
         if type_ == a.VOID:
             self.fail(node, "VOID_VALUE", "This call does not return a value.")
@@ -218,6 +250,7 @@ class _Checker:
         return type_
 
     def expression(self, node: a.Expression, expected: a.Type | None) -> a.Type:
+        """Infer an expression type, using context for otherwise ambiguous containers."""
         if isinstance(node, a.Literal):
             return node.type
         if isinstance(node, a.Name):
@@ -298,6 +331,7 @@ class _Checker:
         self.fail(node, "UNSUPPORTED_FEATURE", "Unsupported expression.")
 
     def binary(self, node: a.Node, left: a.Type, operator: str, right: a.Type) -> a.Type:
+        """Validate an operator's operand types and derive its result type."""
         if operator == "@":
             if isinstance(right, a.MapType):
                 self.expect(node, left, right.key)
@@ -329,11 +363,13 @@ class _Checker:
             self.fail(node, "CALL_ARITY", f"'{node.name}' expects {count} argument(s), got {len(node.arguments)}.")
 
     def call(self, node: a.Call) -> a.Type:
+        """Check a call and retain its result type, including void statement calls."""
         type_ = self._call(node)
         self.expression_types[id(node)] = type_
         return type_
 
     def _call(self, node: a.Call) -> a.Type:
+        """Apply declared function signatures or the supported builtin type rules."""
         if node.name in self.functions:
             function = self.functions[node.name]
             self.arity(node, len(function.parameters))
@@ -382,7 +418,12 @@ class _Checker:
 
 
 def analyze(program: a.Program) -> AnalysisResult:
-    """Validate a program and collect types for downstream compiler stages."""
+    """Validate a program and collect types for downstream compiler stages.
+
+    Register top-level function signatures first to allow recursion and forward
+    calls. Each run owns its scopes and node-identity metadata; failed analyses
+    return partial metadata that callers must not use to emit code.
+    """
     checker = _Checker()
     for node in program.statements:
         if isinstance(node, a.Function):

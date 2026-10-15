@@ -21,6 +21,7 @@ REFERENCES = sorted((ROOT / 'zakbench/tasks').glob('*/reference.zak'))
 
 
 def python_source(path):
+    """Load and transpile a fixture; the parent process never executes its output."""
     result = compile(path.read_text(encoding='utf-8'))
     assert result.ok and result.ast is not None, result.errors
     return transpile(result.ast)

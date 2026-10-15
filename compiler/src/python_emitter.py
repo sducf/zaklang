@@ -13,6 +13,7 @@ _BUILTINS = '_ZAK_builtins'
 
 
 def _name(identifier: str, *, store: bool = False) -> py.Name:
+    """Build a variable read, or an assignment binding when ``store`` is true."""
     return py.Name(id=identifier, ctx=py.Store() if store else py.Load())
 
 
@@ -25,11 +26,14 @@ def _call(function: py.expr, *arguments: py.expr) -> py.Call:
 
 
 def _builtin(name: str, *arguments: py.expr) -> py.Call:
+    """Qualify a Python builtin so user-defined Zak names cannot shadow it."""
     return _call(_attribute(_name(_BUILTINS), name), *arguments)
 
 
 @dataclass(frozen=True)
 class _Binding:
+    """Connect a lexical Zak variable to its Python name and module ownership."""
+
     identifier: str
     module: bool
 
@@ -38,6 +42,7 @@ class PythonEmitter:
     """One-shot emitter; every invocation owns its counters and lexical scopes."""
 
     def __init__(self, program: zak.Program, analysis: AnalysisResult):
+        """Initialize emission state for this exact, successfully analyzed AST."""
         self.program = program
         self.types = analysis.expression_types
         self.scopes: list[dict[str, _Binding]] = [{}]
@@ -50,6 +55,7 @@ class PythonEmitter:
         self.needs_join = False
 
     def declare(self, name: str) -> _Binding:
+        """Introduce a fresh Python identifier in the current lexical scope."""
         binding = _Binding(f'_ZAK_v{self.next_variable}', len(self.scopes) == 1)
         self.next_variable += 1
         self.scopes[-1][name] = binding
@@ -57,6 +63,7 @@ class PythonEmitter:
         return binding
 
     def lookup(self, name: str) -> _Binding:
+        """Resolve the nearest binding; an absent name indicates invalid input."""
         for scope in reversed(self.scopes):
             if name in scope:
                 return scope[name]
@@ -64,6 +71,11 @@ class PythonEmitter:
         raise ValueError(f'Unresolved checked binding: {name}')
 
     def block(self, statements: tuple[zak.Statement, ...], *, child: bool = True) -> list[py.stmt]:
+        """Lower a block, restoring scope on exit and inserting pass if empty.
+
+        Functions and for loops already establish their parameter/loop scope;
+        they pass ``child=False`` so their bodies share those bindings.
+        """
         if child:
             self.scopes.append({})
         try:
@@ -73,6 +85,11 @@ class PythonEmitter:
                 self.scopes.pop()
 
     def target(self, node: zak.Name | zak.Index) -> py.Name | py.Subscript:
+        """Build a writable target and record module-name rebinding in functions.
+
+        Mutating an indexed collection does not rebind its variable, so only
+        direct name targets contribute to the function's global declaration.
+        """
         if isinstance(node, zak.Name):
             binding = self.lookup(node.name)
             if binding.module and self.global_writes is not None:
@@ -82,11 +99,13 @@ class PythonEmitter:
                             slice=self.expression(node.index), ctx=py.Store())
 
     def operator(self, operator: str, type_: zak.Type) -> py.operator:
+        """Choose arithmetic operators, preserving I floor division and R division."""
         if operator == '/':
             return py.FloorDiv() if type_ == zak.I else py.Div()
         return {'+': py.Add, '-': py.Sub, '*': py.Mult, '%': py.Mod}[operator]()
 
     def statement(self, node: zak.Statement) -> py.stmt:
+        """Lower one checked statement while maintaining lexical binding state."""
         if isinstance(node, zak.Declaration):
             # Resolve the initializer before introducing a shadowing binding.
             value = self.expression(node.value)
@@ -133,6 +152,11 @@ class PythonEmitter:
         raise ValueError(f'Unsupported checked statement: {type(node).__name__}')
 
     def function(self, node: zak.Function) -> py.FunctionDef:
+        """Lower a function with local parameters and explicit module rebindings.
+
+        Names are preassigned for recursive/forward calls. Global writes are
+        collected while lowering the body, then declared before any reads.
+        """
         self.scopes.append({})
         previous_writes = self.global_writes
         self.global_writes = set()
@@ -149,6 +173,11 @@ class PythonEmitter:
                               body=body, decorator_list=[], returns=None, type_comment=None, type_params=[])
 
     def expression(self, node: zak.Expression) -> py.expr:
+        """Translate an expression without executing it or changing evaluation order.
+
+        Python AST nodes handle precedence, short circuiting, and literal
+        escaping; semantic metadata supplies types for arithmetic lowering.
+        """
         if isinstance(node, zak.Literal):
             return py.Constant(value=node.value)
         if isinstance(node, zak.Name):
@@ -189,6 +218,11 @@ class PythonEmitter:
         raise ValueError(f'Unsupported checked expression: {type(node).__name__}')
 
     def call(self, node: zak.Call) -> py.expr:
+        """Lower user calls and builtin operations to standalone Python expressions.
+
+        Container builtins preserve their declared result types. The join
+        helper preserves argument order despite Python's receiver-first syntax.
+        """
         arguments = [self.expression(value) for value in node.arguments]
         if node.name in self.functions:
             return _call(_name(self.functions[node.name]), *arguments)
@@ -215,6 +249,12 @@ class PythonEmitter:
         raise ValueError(f'Unsupported checked builtin: {name}')
 
     def emit(self) -> str:
+        """Render a module with helpers, hoisted functions, code, and function exports.
+
+        Traverse in source order first so name resolution matches the checker;
+        hoisting only rearranges the completed Python function definitions.
+        Fresh emitter state and ordered traversal make output reproducible.
+        """
         functions, statements = [], []
         for node in self.program.statements:
             rendered = self.statement(node)
