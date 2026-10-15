@@ -6,9 +6,15 @@ from sqlalchemy.orm import Session
 from api.controllers.auth import (
     get_current_user_controller,
     login_controller,
+    refresh_controller,
     register_controller,
 )
-from api.schemas.auth import LoginRequest, TokenResponse, UserResponse
+from api.schemas.auth import (
+    LoginRequest,
+    RefreshRequest,
+    TokenResponse,
+    UserResponse,
+)
 from database.db import get_db
 from database.models import User
 
@@ -33,6 +39,14 @@ def login(
     db: Session = Depends(get_db),
 ) -> TokenResponse:
     return login_controller(payload, db)
+
+
+@router.post("/refresh", response_model=TokenResponse)
+def refresh(
+    payload: RefreshRequest,
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    return refresh_controller(payload, db)
 
 
 @router.get("/me", response_model=UserResponse)

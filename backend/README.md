@@ -24,8 +24,10 @@ The current schema includes:
 FastAPI route modules live under `api/routes/`:
 
 - `api/routes/testing.py` contains the root and GPU connectivity routes.
-- `api/routes/auth.py` reserves the registration, login, and current-user
-  endpoints.
+- `api/routes/auth.py` contains the registration, login, token refresh, and
+  current-user endpoints. Login and refresh return a short-lived access token
+  and a longer-lived refresh token (`REFRESH_TOKEN_EXPIRE_DAYS`, default 7).
+  Send the refresh token to `POST /auth/refresh` to get a new pair.
 - `api/controllers/` contains route-adjacent application behavior. The GPU
   health controller is the first extracted implementation; auth controllers
   will be added with the authentication service.

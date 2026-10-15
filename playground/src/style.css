@@ -1561,32 +1561,58 @@ td {
     color: #a3c1ad;
     line-height: 1.9;
 }
-.welcome-stats {
-    display: flex;
-    justify-content: center;
-    gap: 40px;
-    margin: 28px 0;
-    font-size: 10px;
-    color: #a5c3af;
-}
-.welcome-stats strong {
-    display: block;
-    color: #d7eedf;
-    font-size: 24px;
-    font-weight: 500;
-    margin-bottom: 6px;
-}
-.welcome-note {
-    display: flex;
-    align-items: flex-start;
+.auth-card {
+    max-width: 420px;
     text-align: left;
-    gap: 9px;
-    border-top: 1px solid #354d3c;
-    margin-top: 32px;
-    padding-top: 20px;
+}
+.auth-mode {
+    margin-bottom: 24px;
+}
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.auth-field .eyebrow {
+    font-size: 9px;
+    letter-spacing: 0.9px;
+}
+.auth-field input {
+    min-height: 41px;
+    padding: 0 12px;
+    border: 1px solid #343c35;
+    background: #171c18;
+    color: #d4ddd7;
+    border-radius: 5px;
+    font-size: 12px;
+}
+.auth-field input:focus-visible {
+    outline-offset: 0;
+}
+.auth-field small {
     font-size: 10px;
-    line-height: 1.8;
-    color: #8eaf99;
+    color: var(--muted);
+}
+.workspace-welcome .auth-error {
+    color: #efb09e;
+    font-size: 11px;
+    line-height: 1.6;
+    margin: 0;
+}
+.profile-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.profile-logout {
+    margin-left: auto;
+    flex-shrink: 0;
 }
 .sr-only {
     position: absolute;

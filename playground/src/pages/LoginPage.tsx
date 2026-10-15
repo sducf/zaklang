@@ -1,9 +1,50 @@
-import { Link } from "react-router";
+import { useState } from "react";
+import type { FormEvent } from "react";
+import { Navigate, useLocation } from "react-router";
 import Icon from "@/components/Icon";
-import { useDemoRuns } from "@/lib/run-store";
+import { ApiError } from "@/lib/api";
+import { login, register, useAuth } from "@/lib/auth";
+
+type Mode = "login" | "register";
+
+const modes: { value: Mode; label: string }[] = [
+    { value: "login", label: "Sign in" },
+    { value: "register", label: "Create account" },
+];
 
 export default function LoginPage() {
-    const runs = useDemoRuns();
+    const auth = useAuth();
+    const location = useLocation();
+    const [mode, setMode] = useState<Mode>("login");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
+
+    if (auth.status === "loading") return null;
+    if (auth.status === "signed-in") {
+        const from = (location.state as { from?: string } | null)?.from;
+        return <Navigate to={from ?? "/playground"} replace />;
+    }
+
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        setError(null);
+        setSubmitting(true);
+        try {
+            await (mode === "login" ? login : register)(email, password);
+        } catch (err) {
+            setError(
+                err instanceof ApiError
+                    ? err.message
+                    : "Could not reach the server. Try again.",
+            );
+            setSubmitting(false);
+        }
+    }
+
+    const submitLabel = modes.find((item) => item.value === mode)?.label;
+
     return (
         <>
             <div className="page-heading">
@@ -12,38 +53,78 @@ export default function LoginPage() {
                         YOUR WORKSPACE
                     </div>
                     <h1>
-                        Welcome to the lab<span className="title-dot">.</span>
+                        {mode === "login" ? "Welcome back" : "Join the lab"}
+                        <span className="title-dot">.</span>
                     </h1>
                     <p>
-                        A place to try Zak, inspect output, and ask better
-                        questions.
+                        Sign in to run Zak in the Playground and keep your run
+                        history.
                     </p>
                 </div>
             </div>
-            <section className="workspace-welcome">
+            <section className="workspace-welcome auth-card">
                 <span className="welcome-mark">z.</span>
-                <h2>You’re in the demo workspace</h2>
-                <p>
-                    You can use the Playground without an account. Your last 50
-                    demo runs are saved in this browser, ready to inspect in
-                    Explorer.
-                </p>
-                <div className="welcome-stats">
-                    <span>
-                        <strong>{runs.length}</strong> local demo runs
-                    </span>
-                    <span>
-                        <strong>3</strong> development tasks
-                    </span>
+                <div className="segmented-control auth-mode">
+                    {modes.map((item) => (
+                        <button
+                            key={item.value}
+                            type="button"
+                            className={
+                                mode === item.value ? "selected" : undefined
+                            }
+                            aria-pressed={mode === item.value}
+                            onClick={() => {
+                                setMode(item.value);
+                                setError(null);
+                            }}
+                        >
+                            {item.label}
+                        </button>
+                    ))}
                 </div>
-                <Link className="button primary" to="/playground">
-                    Open Playground <Icon name="arrow" size={15} />
-                </Link>
-                <div className="welcome-note">
-                    <Icon name="book" size={15} />
-                    Email/password accounts, roles, and quotas will connect to
-                    the backend in a later iteration.
-                </div>
+                <form className="auth-form" onSubmit={handleSubmit}>
+                    <label className="auth-field">
+                        <span className="eyebrow">EMAIL</span>
+                        <input
+                            type="email"
+                            autoComplete="email"
+                            required
+                            value={email}
+                            onChange={(event) => setEmail(event.target.value)}
+                        />
+                    </label>
+                    <label className="auth-field">
+                        <span className="eyebrow">PASSWORD</span>
+                        <input
+                            type="password"
+                            autoComplete={
+                                mode === "login"
+                                    ? "current-password"
+                                    : "new-password"
+                            }
+                            required
+                            value={password}
+                            onChange={(event) =>
+                                setPassword(event.target.value)
+                            }
+                        />
+                        {mode === "register" && (
+                            <small>At least 8 characters.</small>
+                        )}
+                    </label>
+                    {error && (
+                        <p className="auth-error" role="alert">
+                            {error}
+                        </p>
+                    )}
+                    <button
+                        className="button primary"
+                        type="submit"
+                        disabled={submitting}
+                    >
+                        {submitLabel} <Icon name="arrow" size={15} />
+                    </button>
+                </form>
             </section>
         </>
     );
