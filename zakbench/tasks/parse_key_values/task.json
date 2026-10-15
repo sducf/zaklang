@@ -1,0 +1,14 @@
+{
+  "id": "parse_key_values",
+  "title": "Parse Key Values",
+  "category": "structured_data",
+  "prompt": "Given a string of key and value pairs, return a map from each key to its integer value. Pairs are separated by commas, and within each pair the key and the value are separated by an equals sign. Keys are lowercase words and values are whole numbers that may be negative. There are no spaces. If a key appears more than once, keep the value from its last appearance. An empty string contains no pairs.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "outputType": "map<string, integer>"
+}

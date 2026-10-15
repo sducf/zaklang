@@ -22,7 +22,7 @@ Table benchmark_runs {
   temperature float
   max_tokens integer
 
-  status varchar(50) [not null, note: "Application default: pending"]
+  status varchar(50) [not null, note: "queued, running, passed, failed, error, or timeout"]
 
   started_at timestamptz [not null]
   completed_at timestamptz

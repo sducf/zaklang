@@ -1,0 +1,38 @@
+[
+  {
+    "inputs": ["()"],
+    "expected": true
+  },
+  {
+    "inputs": ["([]{})"],
+    "expected": true
+  },
+  {
+    "inputs": ["{[()()]}"],
+    "expected": true
+  },
+  {
+    "inputs": ["(]"],
+    "expected": false
+  },
+  {
+    "inputs": ["([)]"],
+    "expected": false
+  },
+  {
+    "inputs": ["(("],
+    "expected": false
+  },
+  {
+    "inputs": ["}"],
+    "expected": false
+  },
+  {
+    "inputs": ["()]"],
+    "expected": false
+  },
+  {
+    "inputs": [""],
+    "expected": true
+  }
+]

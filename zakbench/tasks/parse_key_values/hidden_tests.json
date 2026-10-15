@@ -1,0 +1,41 @@
+[
+  {
+    "inputs": ["apples=3,pears=10"],
+    "expected": {
+      "apples": 3,
+      "pears": 10
+    }
+  },
+  {
+    "inputs": ["count=7"],
+    "expected": {
+      "count": 7
+    }
+  },
+  {
+    "inputs": ["a=1,b=2,a=5"],
+    "expected": {
+      "a": 5,
+      "b": 2
+    }
+  },
+  {
+    "inputs": ["temp=-4,level=0"],
+    "expected": {
+      "temp": -4,
+      "level": 0
+    }
+  },
+  {
+    "inputs": ["x=100,y=200,z=300"],
+    "expected": {
+      "x": 100,
+      "y": 200,
+      "z": 300
+    }
+  },
+  {
+    "inputs": [""],
+    "expected": {}
+  }
+]

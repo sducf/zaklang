@@ -12,7 +12,12 @@ from pwdlib import PasswordHash
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from api.schemas.auth import LoginRequest, TokenResponse, UserResponse
+from api.schemas.auth import (
+    LoginRequest,
+    RefreshRequest,
+    TokenResponse,
+    UserResponse,
+)
 from database.db import get_db
 from database.models import User
 
@@ -34,19 +39,55 @@ def _normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
-def _create_access_token(user: User) -> str:
-    expires_in = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_in)
+def _create_token(user: User, token_type: str, lifetime: timedelta) -> str:
     payload = {
         "sub": str(user.id),
         "role": user.role,
-        "exp": expires_at,
+        "type": token_type,
+        "exp": datetime.now(timezone.utc) + lifetime,
     }
     return jwt.encode(
         payload,
         _jwt_secret(),
         algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
     )
+
+
+def _issue_tokens(user: User) -> TokenResponse:
+    access_minutes = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+    refresh_days = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+    return TokenResponse(
+        access_token=_create_token(
+            user, "access", timedelta(minutes=access_minutes)
+        ),
+        refresh_token=_create_token(
+            user, "refresh", timedelta(days=refresh_days)
+        ),
+    )
+
+
+def _user_from_token(token: str, token_type: str, db: Session) -> User:
+    """Decode a token of the expected type and load its user, or raise 401."""
+    invalid = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        algorithm = os.getenv("JWT_ALGORITHM", "HS256")
+        payload = jwt.decode(token, _jwt_secret(), algorithms=[algorithm])
+        user_id = UUID(payload["sub"])
+    except (jwt.PyJWTError, KeyError, TypeError, ValueError) as exc:
+        raise invalid from exc
+
+    # An access token must not work as a refresh token, and vice versa.
+    if payload.get("type") != token_type:
+        raise invalid
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise invalid
+    return user
 
 
 def register_controller(payload: LoginRequest, db: Session) -> UserResponse:
@@ -86,7 +127,13 @@ def login_controller(payload: LoginRequest, db: Session) -> TokenResponse:
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    return TokenResponse(access_token=_create_access_token(user))
+    return _issue_tokens(user)
+
+
+def refresh_controller(payload: RefreshRequest, db: Session) -> TokenResponse:
+    """Exchange a valid refresh token for a new access and refresh token."""
+    user = _user_from_token(payload.refresh_token, "refresh", db)
+    return _issue_tokens(user)
 
 
 def get_current_user_controller(
@@ -104,26 +151,4 @@ def get_current_user_controller(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    try:
-        algorithm = os.getenv("JWT_ALGORITHM", "HS256")
-        payload = jwt.decode(
-            credentials.credentials,
-            _jwt_secret(),
-            algorithms=[algorithm],
-        )
-        user_id = UUID(payload["sub"])
-    except (jwt.PyJWTError, KeyError, TypeError, ValueError) as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
-
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return user
+    return _user_from_token(credentials.credentials, "access", db)

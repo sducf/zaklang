@@ -1,0 +1,14 @@
+{
+  "id": "balanced_brackets",
+  "title": "Balanced Brackets",
+  "category": "validation",
+  "prompt": "Given a string made up only of opening and closing parentheses, square brackets, and curly braces, return true if every opening bracket is closed by a bracket of the same kind and the pairs are properly nested. Otherwise return false. An empty string is balanced.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "outputType": "boolean"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "bank_account",
+  "title": "Bank Account",
+  "category": "simulation",
+  "prompt": "Simulate a bank account that starts with a balance of 0. Each event is a string made of an action word, a single space, and a positive whole number amount. The action is either deposit, which adds the amount to the balance, or withdraw, which subtracts it. A withdrawal larger than the current balance is ignored and leaves the balance unchanged. Given the events in order, return the final balance.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "events",
+      "type": "string[]"
+    }
+  ],
+  "outputType": "integer"
+}

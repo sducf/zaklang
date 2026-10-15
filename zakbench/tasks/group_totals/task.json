@@ -1,0 +1,18 @@
+{
+  "id": "group_totals",
+  "title": "Group Totals",
+  "category": "structured_data",
+  "prompt": "Given an array of names and an array of integer amounts of the same length, where each amount belongs to the name at the same position, return a map from each name to the sum of all of its amounts.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "names",
+      "type": "string[]"
+    },
+    {
+      "name": "amounts",
+      "type": "integer[]"
+    }
+  ],
+  "outputType": "map<string, integer>"
+}
