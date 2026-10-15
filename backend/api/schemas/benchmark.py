@@ -5,6 +5,8 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
+TASK_ID_PATTERN = r"^[a-z0-9_]+$"
+
 
 class Language(str, Enum):
     ZAK = "zak"
@@ -64,7 +66,7 @@ class CompileResponse(BaseModel):
 
 
 class RunCreateRequest(BaseModel):
-    task_id: str
+    task_id: str = Field(pattern=TASK_ID_PATTERN)
     language: Language
     source: str | None = Field(default=None, max_length=20_000)
 

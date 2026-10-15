@@ -2,7 +2,7 @@
 
 from typing import NoReturn
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 
 from api.schemas.benchmark import (
     CompileRequest,
@@ -10,6 +10,7 @@ from api.schemas.benchmark import (
     RunCreateRequest,
     RunListItem,
     RunResponse,
+    TASK_ID_PATTERN,
     TaskResponse,
 )
 from api.controllers.auth import get_current_user_controller
@@ -31,7 +32,9 @@ def list_tasks() -> list[TaskResponse]:
 
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
-def get_task(task_id: str) -> TaskResponse:
+def get_task(
+    task_id: str = Path(pattern=TASK_ID_PATTERN),
+) -> TaskResponse:
     _not_implemented()
 
 
