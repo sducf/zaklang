@@ -1,5 +1,7 @@
 """Contract-only benchmark routes."""
 
+from typing import NoReturn
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from api.schemas.benchmark import (
@@ -16,7 +18,7 @@ from database.models import User
 router = APIRouter(tags=["benchmark"])
 
 
-def _not_implemented() -> None:
+def _not_implemented() -> NoReturn:
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="Benchmark endpoint behavior is not implemented yet",

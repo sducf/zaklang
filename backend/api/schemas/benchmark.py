@@ -1,5 +1,6 @@
 """Public request and response models for benchmark API endpoints."""
 
+from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -46,7 +47,7 @@ class TaskResponse(BaseModel):
 
 
 class CompileRequest(BaseModel):
-    source: str = Field(min_length=1)
+    source: str = Field(min_length=1, max_length=20_000)
 
 
 class CompilerError(BaseModel):
@@ -65,7 +66,7 @@ class CompileResponse(BaseModel):
 class RunCreateRequest(BaseModel):
     task_id: str
     language: Language
-    source: str | None = None
+    source: str | None = Field(default=None, max_length=20_000)
 
 
 class AttemptResponse(BaseModel):
@@ -91,6 +92,10 @@ class RunResponse(BaseModel):
     id: int
     task_id: str
     language: Language
+    model_name: str
+    temperature: float | None
+    started_at: datetime
+    completed_at: datetime | None
     status: RunStatus
     attempts_used: int = Field(ge=0)
     # These totals are derived across attempts; per-attempt values stay nested.
