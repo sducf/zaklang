@@ -1,6 +1,7 @@
-import { Link, NavLink, Outlet, useLocation } from "react-router";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/components/Icon";
+import { logout, useAuth } from "@/lib/auth";
 
 const links: { to: string; label: string; icon: IconName }[] = [
     { to: "/playground", label: "Playground", icon: "terminal" },
@@ -10,6 +11,8 @@ const links: { to: string; label: string; icon: IconName }[] = [
 
 function Layout() {
     const location = useLocation();
+    const navigate = useNavigate();
+    const auth = useAuth();
     const current =
         links.find((link) => location.pathname.startsWith(link.to))?.label ??
         "Workspace";
@@ -68,13 +71,35 @@ function Layout() {
                             Meet Zak Core <Icon name="arrow" size={14} />
                         </Link>
                     </div>
-                    <Link to="/login" className="profile-link">
-                        <span className="profile-avatar">D</span>
-                        <span>
-                            Demo workspace<small>Local prototype</small>
-                        </span>
-                        <Icon name="chevron" size={15} />
-                    </Link>
+                    {auth.status === "signed-in" ? (
+                        <div className="profile-link">
+                            <span className="profile-avatar">
+                                {auth.user.email.charAt(0).toUpperCase()}
+                            </span>
+                            <span className="profile-name">
+                                {auth.user.email}
+                                <small>{auth.user.role}</small>
+                            </span>
+                            <button
+                                type="button"
+                                className="text-button profile-logout"
+                                onClick={() => {
+                                    logout();
+                                    navigate("/login", { replace: true });
+                                }}
+                            >
+                                Sign out
+                            </button>
+                        </div>
+                    ) : (
+                        <Link to="/login" className="profile-link">
+                            <span className="profile-avatar">?</span>
+                            <span>
+                                Sign in<small>Email and password</small>
+                            </span>
+                            <Icon name="chevron" size={15} />
+                        </Link>
+                    )}
                 </div>
             </aside>
             <div className="main-shell">
