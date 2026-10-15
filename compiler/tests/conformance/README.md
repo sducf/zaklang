@@ -41,18 +41,22 @@ python3 -m venv .venv
 program and reference, checks fixture pairing, checks SD1 syntax coverage,
 and verifies reference function/parameter names against task metadata.
 These are grammar checks. SD-32's `test_semantic.py` and `test_compile.py`
-add static checks for all 15 programs and all three references. Expected
-stdout has not yet been verified by execution. To check the files directly:
+add static checks for all 15 programs and all three references. SD-34's
+`test_transpiler_corpus.py` additionally syntax-checks all emitted Python,
+compares all 15 stdout files, and checks the three references against their
+17 hidden cases using fresh, time-limited development subprocesses. Those
+trusted-example checks are separate from the production sandbox integration.
+To check the files statically:
 
 ```sh
 .venv/bin/python -m compiler.src compiler/tests/conformance zakbench/tasks
 ```
 
-## Remaining work after SD-34 and isolated execution support
+## Remaining SD-35 work after isolated execution support
 
-SD-32 provides `compiler.src.compile(source)` and a dataclass AST. The
-checkout still has no `transpile(program)` implementation. Once the
-transpiler and isolated execution dependencies land:
+SD-32 provides `compiler.src.compile(source)` and a dataclass AST; SD-34
+provides `compiler.src.transpile(program)`. Once the production sandbox and
+evaluator dependencies land:
 
 1. Add `test_conformance.py` to compile every program, assert compilation
    succeeds, and transpile its AST.

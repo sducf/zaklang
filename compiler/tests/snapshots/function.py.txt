@@ -1,0 +1,10 @@
+import builtins as _ZAK_builtins
+
+def _ZAK_f0(_ZAK_v0):
+    _ZAK_v1 = 0
+    for _ZAK_v2 in _ZAK_builtins.range(0, _ZAK_v0):
+        if _ZAK_v2 % 2 == 0:
+            _ZAK_v1 += _ZAK_v2
+    return _ZAK_v1
+_ZAK_builtins.print(_ZAK_f0(4))
+_ZAK_builtins.globals()['f'] = _ZAK_f0

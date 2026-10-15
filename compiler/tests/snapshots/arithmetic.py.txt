@@ -1,0 +1,5 @@
+import builtins as _ZAK_builtins
+_ZAK_v0 = 7 // 2
+_ZAK_v1 = 7.0 / 2.0
+_ZAK_builtins.print(_ZAK_v0)
+_ZAK_builtins.print(_ZAK_v1)

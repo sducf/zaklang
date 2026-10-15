@@ -13,6 +13,9 @@ from . import ast as a
 
 @lru_cache(maxsize=1)
 def _parser() -> Lark:
+    """Build the grammar parser once; retain positions and optional-field slots."""
+
+    # The text file literally has a representation of the grammar, so don't remove it
     return Lark(
         Path(__file__).with_name("grammar.txt").read_text(encoding="utf-8"),
         parser="lalr", start="start", propagate_positions=True,
@@ -21,12 +24,19 @@ def _parser() -> Lark:
 
 
 def _span(meta) -> a.Span:
+    """Convert Lark positions to public spans, defaulting empty input to 1:1."""
     return a.Span(getattr(meta, "line", 1), getattr(meta, "column", 1),
                   getattr(meta, "end_line", 1), getattr(meta, "end_column", 1))
 
 
 @v_args(meta=True)
 class _AST(Transformer):
+    """Map grammar-rule callbacks to immutable compiler-owned syntax nodes.
+
+    Most methods directly mirror their rule's children. Optional grammar
+    slots remain None so missing types and slice endpoints stay distinguishable.
+    """
+
     def start(self, meta, children):
         return a.Program(tuple(children[0]), span=_span(meta))
 
@@ -49,17 +59,31 @@ class _AST(Transformer):
         return a.Parameter(str(children[0]), children[1], span=_span(meta))
 
     def fn(self, meta, children):
-        return a.Function(str(children[0]), tuple(c for c in children[1:-2] if c is not None),
-                          children[-2], children[-1], span=_span(meta))
+        """Separate the optional parameter slots from the return type and body."""
+        
+        return a.Function(
+            str(children[0]), 
+            tuple(c for c in children[1:-2] if c is not None),
+            children[-2], children[-1], span=_span(meta)
+        )
 
     def decl(self, meta, children):
-        return a.Declaration(str(children[0]), children[1], children[2], span=_span(meta))
+        return a.Declaration(
+            str(children[0]), 
+            children[1], 
+            children[2],
+            span=_span(meta)
+        )
 
     def target(self, meta, children):
+        """Build a variable-rooted chain of indexed assignment targets."""
+        
         name = children[0]
         value = a.Name(str(name), span=a.Span(name.line, name.column, name.end_line, name.end_column))
+        
         for index in children[1:]:
             value = a.Index(value, index, span=_span(meta))
+        
         return value
 
     def aop(self, meta, children):
@@ -83,6 +107,7 @@ class _AST(Transformer):
         return a.Continue(span=_span(meta))
 
     def if_(self, meta, children):
+        """Normalize an elif into an If node inside the parent's else sequence."""
         other = children[2]
         return a.If(children[0], children[1], (other,) if isinstance(other, a.If) else (other or ()), span=_span(meta))
 
@@ -93,6 +118,7 @@ class _AST(Transformer):
         return a.Iteration(children[0], children[1], span=_span(meta))
 
     def for_(self, meta, children):
+        """Preserve one or two loop names while dropping the unused name slot."""
         return a.For(tuple(str(c) for c in children[:-2] if c is not None), children[-2], children[-1], span=_span(meta))
 
     def int_lit(self, meta, children):
@@ -149,6 +175,7 @@ class _AST(Transformer):
         return a.Index(*children, span=_span(meta))
 
     def slice(self, meta, children):
+        """Keep absent lower/upper bounds in place instead of compacting children."""
         return a.Slice(*children, span=_span(meta))
 
     def arr(self, meta, children):
@@ -165,5 +192,9 @@ class _AST(Transformer):
 
 
 def parse(source: str) -> a.Program:
-    """Return a syntax tree; semantic validation is a separate compiler stage."""
+    """Return a syntax tree without semantic validation or source execution.
+
+    Lark syntax/transform errors propagate; compile(source) converts them to
+    structured diagnostics for API consumers and the static-checking CLI.
+    """
     return _AST().transform(_parser().parse(source))
