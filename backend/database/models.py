@@ -109,6 +109,7 @@ class BenchmarkRun(Base):
     )
 
     # Tracks the current public API state of the run. -H
+    # Examples: queued, running, passed, failed, error, timeout
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
