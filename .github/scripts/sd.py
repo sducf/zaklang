@@ -4,6 +4,7 @@ Usage, from anywhere in the repository:
   python .github/scripts/sd.py branch 33          Make branch SD-33 from the current commit and switch to it.
   python .github/scripts/sd.py branch 33 spec     Make branch SD-33-spec instead.
   python .github/scripts/sd.py commit "Add spec"  Commit as 'SD-33: Add spec'. Extra git options go after it, e.g. -a.
+  python .github/scripts/sd.py commit             Commit as 'SD-33'. The message after the number is optional.
   python .github/scripts/sd.py pr                 Run the CI check, push the branch and open the pull request.
 """
 
@@ -45,11 +46,13 @@ def cmd_branch(text, name=""):
     print(f"Now on branch {branch}. Commit with: python .github/scripts/sd.py commit \"<description>\"")
 
 
-def cmd_commit(description, *git_args):
+def cmd_commit(*args):
     _, issue = current_branch()
+    # A first argument that starts with "-" is a git option, so the commit has no description.
+    description, git_args = (args[0].strip(), args[1:]) if args and not args[0].startswith("-") else ("", args)
     # Accept a description that already starts with the prefix, so the prefix is not added twice.
-    description = re.sub(rf"^SD-{issue}:\s*", "", description.strip())
-    subject = f"SD-{issue}: {description}"
+    description = re.sub(rf"^SD-{issue}(?![0-9]):?\s*", "", description)
+    subject = f"SD-{issue}: {description}" if description else f"SD-{issue}"
     error = check_subject(subject, issue)
     if error:
         sys.exit(f"'{subject}': {error}")
@@ -75,7 +78,7 @@ def cmd_pr():
 
 
 # Each command maps to (function, smallest argument count, largest argument count or None for no limit).
-COMMANDS = {"branch": (cmd_branch, 1, 2), "commit": (cmd_commit, 1, None), "pr": (cmd_pr, 0, 0)}
+COMMANDS = {"branch": (cmd_branch, 1, 2), "commit": (cmd_commit, 0, None), "pr": (cmd_pr, 0, 0)}
 
 if __name__ == "__main__":
     name, args = (sys.argv[1], sys.argv[2:]) if len(sys.argv) > 1 else ("", [])

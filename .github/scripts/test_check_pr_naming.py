@@ -31,28 +31,23 @@ class BranchNameTest(unittest.TestCase):
 
 class CommitSubjectTest(unittest.TestCase):
     def test_valid(self):
-        for subject in ["SD-123: Fix authentication bug", "SD-123: Add user validation",
-                        "SD-123: Update API response handling", "SD-123: Refactor database connection logic",
-                        "SD-123: fix: lower case and colons are fine", "SD-123: Fix"]:
+        for subject in ["SD-123: Fix authentication bug", "SD-123 Fix login", "SD-123-fix-login",
+                        "SD-123:Fix login", "SD-123:  Fix login", "SD-123: fix: colons are fine"]:
             self.assertIsNone(check_subject(subject, "123"), subject)
 
-    def test_wrong_format(self):
-        for subject in ["Fixed bug", "sd-123: Fix login", "SD-123 Fix login", "SD123: Fix login",
-                        " SD-123: Fix login", "feat(SD-123): Fix login", ""]:
-            self.assertIn("must start with", check_subject(subject, "123"), repr(subject))
+    def test_message_after_the_number_is_optional(self):
+        for subject in ["SD-123", "SD-123:", "SD-123: ", "SD-123:\t"]:
+            self.assertIsNone(check_subject(subject, "123"), repr(subject))
 
-    def test_missing_description(self):
-        for subject in ["SD-123", "SD-123:", "SD-123: ", "SD-123:    ", "SD-123: ab", "SD-123:\t"]:
-            self.assertIsNotNone(check_subject(subject, "123"), repr(subject))
-        self.assertIn("at least 3", check_subject("SD-123: ab", "123"))
+    def test_wrong_format(self):
+        for subject in ["Fixed bug", "sd-123: Fix login", "SD123: Fix login", " SD-123: Fix login",
+                        "feat(SD-123): Fix login", "SD-: Fix login", ""]:
+            self.assertIn("must start with 'SD-123'", check_subject(subject, "123"), repr(subject))
 
     def test_mismatched_issue(self):
         self.assertIn("SD-456, but the branch is SD-123", check_subject("SD-456: Fix login", "123"))
         self.assertIn("SD-12, but the branch is SD-123", check_subject("SD-12: Fix login", "123"))
-
-    def test_unexpected_whitespace(self):
-        for subject in ["SD-123:Fix login", "SD-123:  Fix login", "SD-123:\tFix login"]:
-            self.assertIn("exactly one space", check_subject(subject, "123"), repr(subject))
+        self.assertIn("SD-1234, but the branch is SD-123", check_subject("SD-1234 Fix login", "123"))
 
 
 class PullRequestTest(unittest.TestCase):

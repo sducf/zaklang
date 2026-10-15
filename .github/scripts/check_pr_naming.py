@@ -10,31 +10,24 @@ import re
 import subprocess
 import sys
 
-# [0-9] and not \d, because \d also matches non-ASCII digits. Any text can follow the number.
+# Branch names and commit subjects both start with SD-<number>. Any text can follow the number.
+# [0-9] and not \d, because \d also matches non-ASCII digits.
 BRANCH_RE = re.compile(r"SD-([0-9]+)")
-SUBJECT_RE = re.compile(r"SD-([0-9]+):(.*)")
-MIN_DESCRIPTION = 3
 
 
 def branch_issue(branch):
-    """Return the issue number of a branch that starts with SD-<number>, or None."""
+    """Return the issue number of a branch or commit subject that starts with SD-<number>, or None."""
     match = BRANCH_RE.match(branch)
     return match[1] if match else None
 
 
 def check_subject(subject, issue):
     """Return an error for a commit subject on branch SD-<issue>, or None if it is valid."""
-    expected = f"SD-{issue}: <description>"
-    match = SUBJECT_RE.fullmatch(subject)
-    if not match:
-        return f"the subject must start with 'SD-{issue}: '. Expected format: '{expected}'"
-    if match[1] != issue:
-        return f"the subject uses issue SD-{match[1]}, but the branch is SD-{issue}"
-    rest = match[2]
-    if len(rest.strip()) < MIN_DESCRIPTION:
-        return f"the description after 'SD-{issue}:' must have at least {MIN_DESCRIPTION} characters"
-    if not rest.startswith(" ") or rest[1].isspace():
-        return f"put exactly one space between 'SD-{issue}:' and the description"
+    number = branch_issue(subject)
+    if number is None:
+        return f"the subject must start with 'SD-{issue}'"
+    if number != issue:
+        return f"the subject uses issue SD-{number}, but the branch is SD-{issue}"
     return None
 
 
