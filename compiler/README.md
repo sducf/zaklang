@@ -1,8 +1,8 @@
 # ZakLang compiler
 
 The SD-32 compiler parses Zak source and checks names, types, and control
-flow. It returns a compiler-owned AST for SD-34. It does not execute Zak or
-emit Python.
+flow. The separate SD-34 transpiler turns its compiler-owned AST into
+standalone Python. Neither API executes Zak or the emitted Python.
 
 ## Install and check files
 
@@ -13,7 +13,16 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r compiler/requirements-dev.txt
 .venv/bin/python -m compiler.src compiler/tests/conformance zakbench/tasks
 .venv/bin/python -m pytest compiler/tests
+.venv/bin/pyright --project compiler/pyrightconfig.json
 ```
+
+The pytest command runs parser, semantic, emitter, snapshot, and trusted
+corpus/reference checks. Pyright separately checks Python types throughout
+`compiler/src` and `compiler/tests`; passing runtime tests alone does not
+establish that the Python annotations are correct. Pyright requires Node.js.
+For editor diagnostics, select the repository-root `.venv/bin/python`
+interpreter. The compiler-specific Pyright configuration uses that environment
+and checks against Python 3.12 without changing the backend's configuration.
 
 Supply individual `.zak` paths or directories (searched recursively).
 Successful files print `path: OK`; errors print
@@ -44,6 +53,45 @@ else:
 Ordinary compiler failures return diagnostics. `KeyboardInterrupt` and
 `SystemExit` propagate. Syntax errors stop parsing; semantic errors accumulate
 across independently checkable statements.
+
+## Transpile to Python (SD-34)
+
+```python
+from pathlib import Path
+from compiler.src import compile, transpile
+
+result = compile(Path('zakbench/tasks/array_sum/reference.zak').read_text())
+if result.ok:
+    Path('reference.py').write_text(transpile(result.ast), encoding='utf-8')
+else:
+    print(result.errors)
+```
+
+`transpile(program: Program) -> str` revalidates the AST and raises
+`TranspileError` with an `errors: list[CompileError]` for invalid or
+unsupported input. It produces deterministic source on the same Python
+runtime, ending in a newline, with no third-party runtime dependencies.
+The static diagnostics command and `compile(source)` do not emit code.
+
+The emitter preserves lexical block bindings, short-circuit logic, and
+single evaluation of indexed update targets. Integer `/` and `/=` become
+floor division; R uses ordinary division. Functions are defined before
+top-level statements to support forward calls. Variables and internal
+function names use uppercase `_ZAK_` prefixes that Zak names cannot collide
+with. User functions are exported under their original names, including
+`solve`, for positional calls; generated parameter names are internal.
+Function assignments to module bindings use Python `global` declarations.
+
+All documented builtins are lowered to qualified Python builtins or
+container/string operations. `out` uses Python print formatting and a final
+newline. `srt`, `rev`, `keys`, and `vals` return arrays rather than iterators;
+`sum` on an empty R array returns `0.0`. The generated join helper preserves
+left-to-right evaluation of `jn(values, delimiter)` arguments.
+
+`semantic.analyze(program)` exposes `AnalysisResult(errors,
+expression_types)` for compiler stages. Types are keyed by `id(node)` and
+are meaningful only while that exact AST is alive. Failed analyses have
+partial metadata; code emission refuses them. The AST itself is unchanged.
 
 ## AST contract for SD-34
 
@@ -143,8 +191,13 @@ Void calls can be statements but cannot be used as values.
 Passing these checks does not prove runtime safety or correct output. They
 cannot establish termination, index bounds, map-key existence, divisor
 nonzero, or hidden-test correctness. Runtime execution and exact stdout
-comparison still depend on SD-34 and isolated execution support.
+comparison in the production pipeline still depend on isolated execution
+support.
 
 The [conformance directory](tests/conformance/README.md) has 15 programs and
 expected stdout. Three task folders contain `reference.zak`. SD-32 checks
-all 18 statically; SD-35 still needs to execute them after transpilation.
+all 18 statically; SD-34's development tests syntax-check all emitted
+programs, compare all 15 fixture outputs, and validate all three references
+against their 17 hidden cases in fresh, time-limited Python subprocesses.
+Those trusted-example tests do not provide the SD-21 production sandbox or
+SD-39 evaluator; SD-35's production conformance integration remains.

@@ -2,10 +2,25 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import NoReturn
+
 from . import ast as a
 from .errors import CompileError
 
 BUILTINS = frozenset({"abs", "min", "max", "sum", "srt", "rev", "keys", "vals", "pop", "del", "spl", "jn", "up", "lo", "out"})
+
+
+@dataclass(frozen=True)
+class AnalysisResult:
+    """Types keyed by node identity, valid only for the analyzed AST's lifetime.
+
+    Metadata from a failed analysis is partial and must not be used to emit
+    code. The AST remains unchanged; separate analyses own separate mappings.
+    """
+
+    errors: list[CompileError]
+    expression_types: dict[int, a.Type]
 
 
 def type_name(type_: a.Type) -> str:
@@ -24,12 +39,13 @@ class _Invalid(Exception):
 class _Checker:
     def __init__(self):
         self.errors: list[CompileError] = []
+        self.expression_types: dict[int, a.Type] = {}
         self.scopes: list[dict[str, a.Type]] = [{}]
         self.functions: dict[str, a.Function] = {}
         self.return_type: a.Type | None = None
         self.loop_depth = 0
 
-    def fail(self, node: a.Node, code: str, message: str):
+    def fail(self, node: a.Node, code: str, message: str) -> NoReturn:
         raise _Invalid(CompileError(node.span.line, node.span.col, code, message))
 
     def expect(self, node: a.Node, actual: a.Type, expected: a.Type):
@@ -169,19 +185,27 @@ class _Checker:
 
     def target(self, node: a.Name | a.Index) -> a.Type:
         if isinstance(node, a.Name):
-            return self.lookup(node, node.name)
-        collection = self.target(node.collection)
-        if collection == a.S:
-            self.fail(node, "INVALID_TARGET", "Strings cannot be mutated.")
-        return self.index(node, collection)
+            type_ = self.lookup(node, node.name)
+        else:
+            if not isinstance(node.collection, (a.Name, a.Index)):
+                self.fail(node, "INVALID_TARGET", "Assignment targets must be rooted in a variable.")
+            collection = self.target(node.collection)
+            if collection == a.S:
+                self.fail(node, "INVALID_TARGET", "Strings cannot be mutated.")
+            type_ = self.index(node, collection)
+        self.expression_types[id(node)] = type_
+        return type_
 
     def index(self, node: a.Index, collection: a.Type) -> a.Type:
         if isinstance(collection, a.MapType):
             self.value(node.index, collection.key)
             return collection.value
-        if isinstance(collection, a.ArrayType) or collection == a.S:
+        if isinstance(collection, a.ArrayType):
             self.value(node.index, a.I)
-            return a.S if collection == a.S else collection.element
+            return collection.element
+        if collection == a.S:
+            self.value(node.index, a.I)
+            return a.S
         self.fail(node, "TYPE_MISMATCH", "Indexing requires an array, string, or map.")
 
     def value(self, node: a.Expression, expected: a.Type | None = None) -> a.Type:
@@ -190,6 +214,7 @@ class _Checker:
             self.fail(node, "VOID_VALUE", "This call does not return a value.")
         if expected is not None:
             self.expect(node, type_, expected)
+        self.expression_types[id(node)] = type_
         return type_
 
     def expression(self, node: a.Expression, expected: a.Type | None) -> a.Type:
@@ -199,23 +224,23 @@ class _Checker:
             return self.lookup(node, node.name)
         if isinstance(node, a.Array):
             element = expected.element if isinstance(expected, a.ArrayType) else None
-            if not node.elements and element is None:
-                self.fail(node, "CANNOT_INFER_TYPE", "An empty array requires a contextual array type.")
             for item in node.elements:
                 current = self.value(item, element)
                 element = current if element is None else element
+            if element is None:
+                self.fail(node, "CANNOT_INFER_TYPE", "An empty array requires a contextual array type.")
             return a.ArrayType(element)
         if isinstance(node, a.Map):
             key = expected.key if isinstance(expected, a.MapType) else None
             value = expected.value if isinstance(expected, a.MapType) else None
-            if not node.entries and key is None:
-                self.fail(node, "CANNOT_INFER_TYPE", "An empty map requires a contextual map type.")
             for k, v in node.entries:
                 current_key, current_value = self.value(k, key), self.value(v, value)
                 key = current_key if key is None else key
                 value = current_value if value is None else value
                 if key not in (a.I, a.S):
                     self.fail(k, "INVALID_TYPE", "Map keys must have type I or S.")
+            if key is None or value is None:
+                self.fail(node, "CANNOT_INFER_TYPE", "An empty map requires a contextual map type.")
             return a.MapType(key, value)
         if isinstance(node, a.Unary):
             type_ = self.value(node.operand)
@@ -304,6 +329,11 @@ class _Checker:
             self.fail(node, "CALL_ARITY", f"'{node.name}' expects {count} argument(s), got {len(node.arguments)}.")
 
     def call(self, node: a.Call) -> a.Type:
+        type_ = self._call(node)
+        self.expression_types[id(node)] = type_
+        return type_
+
+    def _call(self, node: a.Call) -> a.Type:
         if node.name in self.functions:
             function = self.functions[node.name]
             self.arity(node, len(function.parameters))
@@ -351,8 +381,8 @@ class _Checker:
         return first.element if name == "pop" else first
 
 
-def check(program: a.Program) -> list[CompileError]:
-    """Check one program without running it; independent statement errors accumulate."""
+def analyze(program: a.Program) -> AnalysisResult:
+    """Validate a program and collect types for downstream compiler stages."""
     checker = _Checker()
     for node in program.statements:
         if isinstance(node, a.Function):
@@ -363,4 +393,9 @@ def check(program: a.Program) -> list[CompileError]:
             else:
                 checker.functions[node.name] = node
     checker.block(program.statements, child=False)
-    return checker.errors
+    return AnalysisResult(checker.errors, checker.expression_types)
+
+
+def check(program: a.Program) -> list[CompileError]:
+    """Check one program without running it; independent statement errors accumulate."""
+    return analyze(program).errors

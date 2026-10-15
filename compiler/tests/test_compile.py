@@ -49,7 +49,7 @@ def test_compile_returns_located_errors(source, code):
 
 def test_empty_program_is_valid():
     result = compile(' \n')
-    assert result.ok and result.ast.statements == ()
+    assert result.ok and result.ast is not None and result.ast.statements == ()
 
 
 def test_syntax_error_position():

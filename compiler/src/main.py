@@ -40,7 +40,7 @@ def compile(source: str) -> CompileResult:
         if isinstance(error.orig_exc, RecursionError):
             return _failure('COMPLEXITY_LIMIT', 'Source nesting exceeds the compiler limit.')
         if isinstance(error.orig_exc, (ValueError, OverflowError)):
-            meta = error.obj.meta
+            meta = getattr(error.obj, 'meta', error.obj)
             return _failure('INVALID_LITERAL', 'Invalid string or numeric literal.', getattr(meta, 'line', 1), getattr(meta, 'column', 1))
         return _failure('INTERNAL_ERROR', 'An internal compiler error prevented analysis.')
     except RecursionError:
