@@ -19,12 +19,13 @@ GIT_ENV = {
 
 class BranchNameTest(unittest.TestCase):
     def test_valid(self):
-        for branch, issue in [("SD-1", "1"), ("SD-123", "123"), ("SD-4567", "4567")]:
+        for branch, issue in [("SD-1", "1"), ("SD-123", "123"), ("SD-4567", "4567"), ("SD-123-fix", "123"),
+                              ("SD-33-zak-core-spec-v0.1", "33"), ("SD-12/login", "12"), ("SD-12a", "12")]:
             self.assertEqual(branch_issue(branch), issue, branch)
 
     def test_invalid(self):
-        for branch in ["feature/SD-123", "SD123", "sd-123", "SD-abc", "SD-123-fix", "feature/login",
-                       "SD-", "SD-12a", " SD-123", "SD-123 ", "SD-123\n", "SD-١٢٣", "main"]:
+        for branch in ["feature/SD-123", "SD123", "sd-123", "SD-abc", "feature/login",
+                       "SD-", " SD-123", "SD_123", "SD-١٢٣", "main"]:
             self.assertIsNone(branch_issue(branch), repr(branch))
 
 
@@ -111,7 +112,22 @@ class PullRequestTest(unittest.TestCase):
         self.commit(self.upstream, "SD-123: Add login")
         code, out = self.run_main("feature/login", self.base, self.sha(self.upstream))
         self.assertEqual(code, 1)
-        self.assertIn("Branch 'feature/login' does not use the required format", out)
+        self.assertIn("Branch 'feature/login' does not start with 'SD-<issue number>'", out)
+        self.assertIn("such as 'SD-123'", out)
+
+    def test_invalid_branch_suggests_its_issue_number(self):
+        code, out = self.run_main("feature/sd-33-spec", self.base, self.base)
+        self.assertEqual(code, 1)
+        self.assertIn("such as 'SD-33' or 'SD-33-short-description'", out)
+
+    def test_branch_with_description_uses_its_issue_number(self):
+        self.git(self.upstream, "checkout", "-q", "-b", "SD-33-zak-core-spec-v0.1")
+        self.commit(self.upstream, "SD-33: Add Zak Core v0.1 specification")
+        self.commit(self.upstream, "SD-34: Wrong issue")
+        code, out = self.run_main("SD-33-zak-core-spec-v0.1", self.base, self.sha(self.upstream))
+        self.assertEqual(code, 1)
+        self.assertIn("Checked 2 commit(s), found 1 error(s)", out)
+        self.assertIn("SD-34, but the branch is SD-33", out)
 
     def test_merge_from_main_is_skipped(self):
         self.git(self.upstream, "checkout", "-q", "-b", "SD-123")
