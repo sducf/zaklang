@@ -27,16 +27,16 @@ def type_name(type_: a.Type) -> str:
     """Format nested types using Zak notation for diagnostic messages."""
     if isinstance(type_, a.ArrayType):
         return f"[{type_name(type_.element)}]"
+   
     if isinstance(type_, a.MapType):
         return f"{{{type_name(type_.key)}:{type_name(type_.value)}}}"
+   
     return type_.name
-
 
 class _Invalid(Exception):
     """Unwind one failed statement while preserving its located diagnostic."""
     def __init__(self, error: CompileError):
         self.error = error
-
 
 class _Checker:
     """Track lexical types and validate each independent statement in a program."""
@@ -55,11 +55,13 @@ class _Checker:
 
     def expect(self, node: a.Node, actual: a.Type, expected: a.Type):
         """Require exact type equality; Zak never inserts implicit conversions."""
+
         if actual != expected:
             self.fail(node, "TYPE_MISMATCH", f"Expected {type_name(expected)}, got {type_name(actual)}.")
 
     def validate_type(self, node: a.Node, type_: a.Type):
         """Validate nested container annotations, including the I/S map-key rule."""
+
         if isinstance(type_, a.ArrayType):
             self.validate_type(node, type_.element)
         elif isinstance(type_, a.MapType):
@@ -71,15 +73,19 @@ class _Checker:
         """Declare a lexical binding, rejecting duplicates and reserved function names."""
         if name in BUILTINS or name in self.functions:
             self.fail(node, "RESERVED_NAME", f"'{name}' is a function name.")
+
         if name in self.scopes[-1]:
             self.fail(node, "DUPLICATE_NAME", f"'{name}' is already declared in this scope.")
+
         self.scopes[-1][name] = type_
 
     def lookup(self, node: a.Node, name: str) -> a.Type:
         """Find the nearest visible variable type or report an undefined name."""
+
         for scope in reversed(self.scopes):
             if name in scope:
                 return scope[name]
+
         self.fail(node, "UNDEFINED_NAME", f"Undefined name '{name}'.")
 
     def block(self, statements: tuple[a.Statement, ...], *, child: bool = True):
@@ -88,6 +94,7 @@ class _Checker:
         A child scope is discarded even on failure. Function and loop callers
         can reuse the scope they already created by passing ``child=False``.
         """
+
         if child:
             self.scopes.append({})
         try:
@@ -102,9 +109,11 @@ class _Checker:
 
     def statement(self, node: a.Statement):
         """Validate a statement's types, bindings, and control-flow context."""
+
         if isinstance(node, a.Declaration):
             if node.declared_type is not None:
                 self.validate_type(node, node.declared_type)
+
             type_ = self.value(node.value, node.declared_type)
             self.bind(node, node.name, type_)
         elif isinstance(node, a.Assignment):
@@ -114,6 +123,7 @@ class _Checker:
                 self.binary(node, target, node.operator[:-1], value)
         elif isinstance(node, a.Append):
             target = self.target(node.target)
+           
             if not isinstance(target, a.ArrayType):
                 self.fail(node.target, "TYPE_MISMATCH", "Append requires an array.")
             self.value(node.value, target.element)
@@ -139,6 +149,7 @@ class _Checker:
             types = self.iteration(node.iteration, len(node.names))
             self.scopes.append({})
             self.loop_depth += 1
+            
             try:
                 for name, type_ in zip(node.names, types):
                     self.bind(node, name, type_)
@@ -159,17 +170,21 @@ class _Checker:
         Functions cannot inherit loop permissions from their definition site;
         their return/loop context is restored after the body is checked.
         """
+        
         if len(self.scopes) != 1 or self.return_type is not None:
             self.fail(node, "UNSUPPORTED_FEATURE", "Functions must be declared at top level.")
+        
         self.validate_type(node, node.return_type)
         saved_return, saved_loop = self.return_type, self.loop_depth
         self.return_type, self.loop_depth = node.return_type, 0
         self.scopes.append({})
+        
         try:
             for parameter in node.parameters:
                 self.validate_type(parameter, parameter.type)
                 self.bind(parameter, parameter.name, parameter.type)
             self.block(node.body, child=False)
+            
             if not self.returns(node.body):
                 self.fail(node, "MISSING_RETURN", f"Function '{node.name}' must return on every path.")
         finally:
@@ -181,6 +196,7 @@ class _Checker:
 
         Loops are not proof: their execution or termination is not guaranteed.
         """
+        
         for node in statements:
             if isinstance(node, a.Return):
                 return True
@@ -190,6 +206,7 @@ class _Checker:
 
     def iteration(self, node: a.Iteration, count: int) -> tuple[a.Type, ...]:
         """Validate an iterable/range and derive the loop-variable types."""
+        
         if node.stop is not None:
             self.value(node.start, a.I)
             self.value(node.stop, a.I)
@@ -215,11 +232,16 @@ class _Checker:
         else:
             if not isinstance(node.collection, (a.Name, a.Index)):
                 self.fail(node, "INVALID_TARGET", "Assignment targets must be rooted in a variable.")
+         
             collection = self.target(node.collection)
+         
             if collection == a.S:
                 self.fail(node, "INVALID_TARGET", "Strings cannot be mutated.")
+    
             type_ = self.index(node, collection)
+   
         self.expression_types[id(node)] = type_
+   
         return type_
 
     def index(self, node: a.Index, collection: a.Type) -> a.Type:
@@ -233,6 +255,7 @@ class _Checker:
         if collection == a.S:
             self.value(node.index, a.I)
             return a.S
+    
         self.fail(node, "TYPE_MISMATCH", "Indexing requires an array, string, or map.")
 
     def value(self, node: a.Expression, expected: a.Type | None = None) -> a.Type:
@@ -242,11 +265,15 @@ class _Checker:
         they constrain inference rather than authorizing type conversion.
         """
         type_ = self.expression(node, expected)
+        
         if type_ == a.VOID:
             self.fail(node, "VOID_VALUE", "This call does not return a value.")
+        
         if expected is not None:
             self.expect(node, type_, expected)
+        
         self.expression_types[id(node)] = type_
+        
         return type_
 
     def expression(self, node: a.Expression, expected: a.Type | None) -> a.Type:
@@ -257,42 +284,56 @@ class _Checker:
             return self.lookup(node, node.name)
         if isinstance(node, a.Array):
             element = expected.element if isinstance(expected, a.ArrayType) else None
+       
             for item in node.elements:
                 current = self.value(item, element)
                 element = current if element is None else element
+       
             if element is None:
                 self.fail(node, "CANNOT_INFER_TYPE", "An empty array requires a contextual array type.")
+       
             return a.ArrayType(element)
         if isinstance(node, a.Map):
             key = expected.key if isinstance(expected, a.MapType) else None
             value = expected.value if isinstance(expected, a.MapType) else None
+       
             for k, v in node.entries:
                 current_key, current_value = self.value(k, key), self.value(v, value)
                 key = current_key if key is None else key
                 value = current_value if value is None else value
+       
                 if key not in (a.I, a.S):
                     self.fail(k, "INVALID_TYPE", "Map keys must have type I or S.")
+       
             if key is None or value is None:
                 self.fail(node, "CANNOT_INFER_TYPE", "An empty map requires a contextual map type.")
+       
             return a.MapType(key, value)
         if isinstance(node, a.Unary):
             type_ = self.value(node.operand)
+       
             if node.operator == "!":
                 self.expect(node, type_, a.B)
                 return a.B
+          
             if node.operator == "#":
                 if not isinstance(type_, (a.ArrayType, a.MapType)) and type_ != a.S:
                     self.fail(node, "TYPE_MISMATCH", "Length requires an array, string, or map.")
                 return a.I
+          
             if type_ not in (a.I, a.R):
                 self.fail(node, "TYPE_MISMATCH", "Negation requires I or R.")
+          
             return type_
         if isinstance(node, a.Binary):
             if node.operator == "@":
                 left = self.value(node.left)
                 right = self.value(node.right)
+          
                 return self.binary(node, left, node.operator, right)
+          
             context = expected if node.operator == "+" else None
+          
             try:
                 left = self.value(node.left, context)
             except _Invalid as error:
@@ -303,14 +344,18 @@ class _Checker:
                 left = self.value(node.left, right)
             else:
                 right = self.value(node.right, left)
+
             return self.binary(node, left, node.operator, right)
+
         if isinstance(node, a.Conditional):
             self.value(node.condition, a.B)
             then = self.value(node.then_value, expected)
             self.value(node.else_value, then)
             return then
+
         if isinstance(node, a.Index):
             return self.index(node, self.value(node.collection))
+
         if isinstance(node, a.Slice):
             collection = self.value(node.collection)
             if collection != a.S and not isinstance(collection, a.ArrayType):
@@ -319,19 +364,24 @@ class _Checker:
                 if bound is not None:
                     self.value(bound, a.I)
             return collection
+
         if isinstance(node, a.Cast):
             source = self.value(node.value)
             if not isinstance(source, a.PrimitiveType):
                 self.fail(node, "TYPE_MISMATCH", "Casts require a primitive value.")
             return node.type
+
         if isinstance(node, a.Call):
             return self.call(node)
+
         if isinstance(node, a.Comprehension):
             self.fail(node, "UNSUPPORTED_FEATURE", "Comprehensions are outside the SD1 compiler subset.")
+
         self.fail(node, "UNSUPPORTED_FEATURE", "Unsupported expression.")
 
     def binary(self, node: a.Node, left: a.Type, operator: str, right: a.Type) -> a.Type:
         """Validate an operator's operand types and derive its result type."""
+
         if operator == "@":
             if isinstance(right, a.MapType):
                 self.expect(node, left, right.key)
@@ -342,18 +392,24 @@ class _Checker:
             else:
                 self.fail(node, "TYPE_MISMATCH", "Membership requires an array, string, or map.")
             return a.B
+
         self.expect(node, right, left)
+
         if operator in ("&", "|"):
             self.expect(node, left, a.B)
             return a.B
+
         if operator in ("==", "!="):
             return a.B
+
         if operator in ("<", "<=", ">", ">="):
             if left not in (a.I, a.R, a.S):
                 self.fail(node, "TYPE_MISMATCH", "Ordering requires matching numeric or string values.")
             return a.B
+
         if operator == "+" and (left == a.S or isinstance(left, a.ArrayType)):
             return left
+
         if left not in (a.I, a.R):
             self.fail(node, "TYPE_MISMATCH", "Arithmetic requires matching numeric values.")
         return left
@@ -376,29 +432,36 @@ class _Checker:
             for argument, parameter in zip(node.arguments, function.parameters):
                 self.value(argument, parameter.type)
             return function.return_type
+       
         if node.name not in BUILTINS:
             self.fail(node, "UNDEFINED_NAME", f"Undefined function '{node.name}'.")
+       
         name = node.name
         self.arity(node, 2 if name in ("min", "max", "spl", "jn", "del") else 1)
+       
         if name == "jn":
             self.value(node.arguments[0], a.ArrayType(a.S))
             self.value(node.arguments[1], a.S)
             return a.S
         first = self.value(node.arguments[0])
+       
         if name == "out":
             return a.VOID
+       
         if name in ("abs", "min", "max"):
             if first not in (a.I, a.R):
                 self.fail(node, "TYPE_MISMATCH", f"'{name}' requires numeric values.")
             if len(node.arguments) == 2:
                 self.value(node.arguments[1], first)
             return first
+   
         if name in ("up", "lo", "spl"):
             self.expect(node.arguments[0], first, a.S)
             if name == "spl":
                 self.value(node.arguments[1], a.S)
                 return a.ArrayType(a.S)
             return a.S
+   
         if name in ("keys", "vals", "del"):
             if not isinstance(first, a.MapType):
                 self.fail(node, "TYPE_MISMATCH", f"'{name}' requires a map.")
@@ -406,12 +469,15 @@ class _Checker:
                 self.value(node.arguments[1], first.key)
                 return a.VOID
             return a.ArrayType(first.key if name == "keys" else first.value)
+       
         if not isinstance(first, a.ArrayType):
             self.fail(node, "TYPE_MISMATCH", f"'{name}' requires an array.")
+       
         if name == "sum":
             if first.element not in (a.I, a.R):
                 self.fail(node, "TYPE_MISMATCH", "'sum' requires an array of I or R.")
             return first.element
+       
         if name == "srt" and first.element not in (a.I, a.R, a.S):
             self.fail(node, "TYPE_MISMATCH", "'srt' requires an array of I, R, or S.")
         return first.element if name == "pop" else first

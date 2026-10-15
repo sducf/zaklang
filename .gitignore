@@ -1,6 +1,7 @@
 *.pdf
 *.Identifier
 
+ZakContext/
 *.env
 *.db
 package-lock.json

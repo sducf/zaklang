@@ -14,6 +14,8 @@ from . import ast as a
 @lru_cache(maxsize=1)
 def _parser() -> Lark:
     """Build the grammar parser once; retain positions and optional-field slots."""
+
+    # The text file literally has a representation of the grammar, so don't remove it
     return Lark(
         Path(__file__).with_name("grammar.txt").read_text(encoding="utf-8"),
         parser="lalr", start="start", propagate_positions=True,
@@ -58,18 +60,30 @@ class _AST(Transformer):
 
     def fn(self, meta, children):
         """Separate the optional parameter slots from the return type and body."""
-        return a.Function(str(children[0]), tuple(c for c in children[1:-2] if c is not None),
-                          children[-2], children[-1], span=_span(meta))
+        
+        return a.Function(
+            str(children[0]), 
+            tuple(c for c in children[1:-2] if c is not None),
+            children[-2], children[-1], span=_span(meta)
+        )
 
     def decl(self, meta, children):
-        return a.Declaration(str(children[0]), children[1], children[2], span=_span(meta))
+        return a.Declaration(
+            str(children[0]), 
+            children[1], 
+            children[2],
+            span=_span(meta)
+        )
 
     def target(self, meta, children):
         """Build a variable-rooted chain of indexed assignment targets."""
+        
         name = children[0]
         value = a.Name(str(name), span=a.Span(name.line, name.column, name.end_line, name.end_column))
+        
         for index in children[1:]:
             value = a.Index(value, index, span=_span(meta))
+        
         return value
 
     def aop(self, meta, children):
