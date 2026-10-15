@@ -1,0 +1,22 @@
+{
+  "id": "shipping_cost",
+  "title": "Shipping Cost",
+  "category": "business_rules",
+  "prompt": "Calculate a shipping cost in cents. A package costs 500 cents for its first kilogram plus 125 cents for each additional kilogram. Express delivery adds 1000 cents. Members then pay half of that total, rounded down to a whole cent. Given the weight in whole kilograms (at least 1), whether delivery is express, and whether the customer is a member, return the final cost in cents.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "weight_kg",
+      "type": "integer"
+    },
+    {
+      "name": "express",
+      "type": "boolean"
+    },
+    {
+      "name": "member",
+      "type": "boolean"
+    }
+  ],
+  "outputType": "integer"
+}

@@ -1,0 +1,34 @@
+[
+  {
+    "inputs": [1, false, false],
+    "expected": 500
+  },
+  {
+    "inputs": [3, false, false],
+    "expected": 750
+  },
+  {
+    "inputs": [1, true, false],
+    "expected": 1500
+  },
+  {
+    "inputs": [10, true, false],
+    "expected": 2625
+  },
+  {
+    "inputs": [1, false, true],
+    "expected": 250
+  },
+  {
+    "inputs": [2, false, true],
+    "expected": 312
+  },
+  {
+    "inputs": [4, false, true],
+    "expected": 437
+  },
+  {
+    "inputs": [4, true, true],
+    "expected": 937
+  }
+]
