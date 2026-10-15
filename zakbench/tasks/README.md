@@ -6,11 +6,17 @@ Each task lives in its own folder named after the task id:
 
 ```text
 tasks/
+├── check_references.py
 └── array_sum/
     ├── task.json
     ├── hidden_tests.json
+    ├── reference.py
     └── reference.zak
 ```
+
+The dev suite has 10 tasks: `array_sum`, `palindrome`, `frequency_count`,
+`binary_search`, `merge_sorted`, `group_totals`, `parse_key_values`,
+`balanced_brackets`, `shipping_cost`, and `bank_account`.
 
 `task.json` is the part the model is allowed to see. `hidden_tests.json` is the
 part it never sees. They are separate files so a prompt builder can load the
@@ -48,13 +54,6 @@ Rules:
 
 Types are written the same way for every language so one definition works for
 both Zak and Python.
-
-`reference.zak` is a hand-written development solution defining the function
-named by `functionName`, with parameters in `inputs` order. The three sample
-tasks include these references as part of SD-35. They are not model prompt
-inputs. Grammar checks live in `compiler/tests/conformance`; proving they
-pass hidden tests requires the SD-32 compiler, SD-34 transpiler, and isolated
-execution service. SD-37 separately adds `reference.py` solutions.
 
 | Type                | Meaning                        |
 | ------------------- | ------------------------------ |
@@ -131,10 +130,43 @@ Rules:
 
 ---
 
+## Reference solutions
+
+Reference solutions prove a task is solvable. They are never part of a model
+prompt.
+
+- `reference.py` is a plain Python solution that defines the function named by
+  `functionName`, with parameters in `inputs` order. It uses only the standard
+  library. Every task has one (SD-37).
+- `reference.zak` is a hand-written Zak solution with the same signature. The
+  three sample tasks include these as part of SD-35. Grammar checks live in
+  `compiler/tests/conformance`, and SD-34's corpus test runs the transpiled
+  references against their hidden tests.
+
+### check_references.py
+
+Run from the repository root:
+
+```sh
+python3 zakbench/tasks/check_references.py
+```
+
+For every task folder it checks that both JSON files parse, `task.json` has
+every field and an `id` matching the folder, `hidden_tests.json` has 5 to 12
+cases whose `inputs` match the task's arity, and `reference.py` exists. It then
+runs `reference.py` in a fresh, isolated, time-limited Python subprocess and
+compares each result to `expected` by value.
+
+It prints one `PASS` or `FAIL` line per task and exits 0 only if every task
+passes. Failures name the case number but never print hidden-test values.
+
+---
+
 ## Adding a task
 
 1. Make a folder under `tasks/` named after the task id.
 2. Write `task.json` with the fields above.
-3. Write `hidden_tests.json` with at least a couple of normal cases and one
-   edge case.
-4. Check both files parse as JSON.
+3. Write `hidden_tests.json` with 5 to 12 cases, including at least one edge
+   case.
+4. Write `reference.py`.
+5. Run `python3 zakbench/tasks/check_references.py` and confirm it exits 0.
