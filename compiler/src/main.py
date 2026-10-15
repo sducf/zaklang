@@ -8,7 +8,8 @@ import json
 from pathlib import Path
 import sys
 
-from lark import UnexpectedInput, VisitError
+from lark import UnexpectedInput
+from lark.exceptions import VisitError
 
 from .errors import CompileError, CompileResult
 from .parser import parse
