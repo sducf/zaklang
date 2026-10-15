@@ -113,7 +113,7 @@ class BenchmarkRun(Base):
     status: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
-        default="pending",
+        default="queued",
     )
 
     started_at: Mapped[datetime] = mapped_column(
