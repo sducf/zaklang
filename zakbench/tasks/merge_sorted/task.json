@@ -1,0 +1,18 @@
+{
+  "id": "merge_sorted",
+  "title": "Merge Sorted Arrays",
+  "category": "algorithms",
+  "prompt": "Given two arrays of integers, each sorted in ascending order, return a single array sorted in ascending order that contains every element from both arrays. Keep duplicate values.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "a",
+      "type": "integer[]"
+    },
+    {
+      "name": "b",
+      "type": "integer[]"
+    }
+  ],
+  "outputType": "integer[]"
+}

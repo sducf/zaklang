@@ -1,0 +1,41 @@
+[
+  {
+    "inputs": [["ann", "bob", "ann"], [10, 5, 7]],
+    "expected": {
+      "ann": 17,
+      "bob": 5
+    }
+  },
+  {
+    "inputs": [["x", "y", "z"], [1, 2, 3]],
+    "expected": {
+      "x": 1,
+      "y": 2,
+      "z": 3
+    }
+  },
+  {
+    "inputs": [["solo"], [42]],
+    "expected": {
+      "solo": 42
+    }
+  },
+  {
+    "inputs": [["a", "a", "b"], [-5, 3, -2]],
+    "expected": {
+      "a": -2,
+      "b": -2
+    }
+  },
+  {
+    "inputs": [["a", "b", "a"], [4, 0, -4]],
+    "expected": {
+      "a": 0,
+      "b": 0
+    }
+  },
+  {
+    "inputs": [[], []],
+    "expected": {}
+  }
+]

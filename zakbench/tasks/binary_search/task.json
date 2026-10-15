@@ -1,0 +1,18 @@
+{
+  "id": "binary_search",
+  "title": "Binary Search",
+  "category": "algorithms",
+  "prompt": "Given an array of distinct integers sorted in ascending order and a target integer, return the position of the target in the array, counting from 0. If the target is not in the array, return -1.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "nums",
+      "type": "integer[]"
+    },
+    {
+      "name": "target",
+      "type": "integer"
+    }
+  ],
+  "outputType": "integer"
+}

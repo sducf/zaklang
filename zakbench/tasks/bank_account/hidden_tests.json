@@ -1,0 +1,30 @@
+[
+  {
+    "inputs": [["deposit 100", "deposit 50"]],
+    "expected": 150
+  },
+  {
+    "inputs": [["deposit 100", "withdraw 30"]],
+    "expected": 70
+  },
+  {
+    "inputs": [["deposit 20", "withdraw 50"]],
+    "expected": 20
+  },
+  {
+    "inputs": [["deposit 40", "withdraw 40"]],
+    "expected": 0
+  },
+  {
+    "inputs": [["withdraw 10", "deposit 5", "withdraw 10", "deposit 12", "withdraw 15"]],
+    "expected": 2
+  },
+  {
+    "inputs": [["deposit 1000", "withdraw 1", "withdraw 999", "withdraw 1"]],
+    "expected": 0
+  },
+  {
+    "inputs": [[]],
+    "expected": 0
+  }
+]
