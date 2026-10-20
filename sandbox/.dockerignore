@@ -1,0 +1,4 @@
+# Only include the files required to build the sandbox image. -H
+*
+!Dockerfile
+!grade.py
