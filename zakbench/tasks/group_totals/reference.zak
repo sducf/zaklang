@@ -1,0 +1,1 @@
+@solve(names:[S],amounts:[I]){S:I}{m:{S:I}={};~i:0..#names{n:=names[i];?n@m{m[n]+=amounts[i]}:{m[n]=amounts[i]}}^m}

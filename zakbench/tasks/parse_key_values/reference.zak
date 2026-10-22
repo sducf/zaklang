@@ -1,0 +1,1 @@
+@solve(text:S){S:I}{m:{S:I}={};?text==""{^m}~p:spl(text,","){kv:=spl(p,"=");m[kv[0]]=I(kv[1])}^m}

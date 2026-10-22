@@ -1,0 +1,1 @@
+@solve(events:[S])I{b:=0;~e:events{p:=spl(e," ");a:=I(p[1]);?p[0]=="deposit"{b+=a}:?a<=b{b-=a}}^b}
