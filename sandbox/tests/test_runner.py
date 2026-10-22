@@ -318,6 +318,57 @@ class TestRunner(unittest.TestCase):
 
         self.assertEqual(result.outcome, "oom")
 
+    def _evaluate_with_report(self, results):
+        """Run evaluate() with Docker faked to return the given grader results."""
+
+        def fake_docker(*args, **kwargs):
+            stdout = {
+                "run": "fake-id",
+                "wait": "0\n",
+                "inspect": json.dumps({"OOMKilled": False}),
+                "logs": json.dumps({"results": results}),
+            }[args[0]]
+
+            return type("R", (), {"stdout": stdout})()
+
+        with patch.object(
+            runner,
+            "_docker",
+            side_effect=fake_docker,
+        ), patch.object(runner.subprocess, "run"):
+            return runner.evaluate(
+                "def solve(n): return n*2",
+                "sample_task",
+                tasks_root=self.root,
+            )
+
+    def test_first_failure_actual_is_candidate_value_only(self):
+        results = [{"ok": True, "value": i * 2} for i in range(5)]
+        results[1] = {"ok": True, "value": [99, "x"]}
+        results[3] = {"ok": False}
+
+        result = self._evaluate_with_report(results)
+
+        self.assertEqual(result.outcome, "fail")
+        self.assertEqual(result.failed_tests, [2, 4])
+        self.assertEqual(result.first_failure_actual, '[99,"x"]')
+
+    def test_first_failure_actual_is_none_when_call_raised(self):
+        results = [{"ok": True, "value": i * 2} for i in range(5)]
+        results[0] = {"ok": False}
+
+        result = self._evaluate_with_report(results)
+
+        self.assertEqual(result.failed_tests, [1])
+        self.assertIsNone(result.first_failure_actual)
+
+        passing = self._evaluate_with_report(
+            [{"ok": True, "value": i * 2} for i in range(5)]
+        )
+
+        self.assertEqual(passing.outcome, "pass")
+        self.assertIsNone(passing.first_failure_actual)
+
     def test_output_does_not_include_hidden_expected_values(self):
         source = Path(self.tmp.name) / "reference.py"
 

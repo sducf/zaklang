@@ -38,6 +38,8 @@ class SandboxResult:
     compile_ok: bool | None = None
     compile_errors: list[dict] = field(default_factory=list)
     transpiled_python: str | None = None
+    # Candidate's own value for the first failing test, as JSON; None if it raised. -H
+    first_failure_actual: str | None = None
 
 
 def _docker(*args: str, timeout: float = 20):
@@ -274,12 +276,25 @@ def _execute(
 
                 outcome = "pass" if not failed else "fail"
 
+                first_failure_actual = None
+
+                if failed:
+                    # Only the candidate's output, never the expected answer. -H
+                    entry = report["results"][failed[0] - 1]
+
+                    if entry["ok"]:
+                        first_failure_actual = json.dumps(
+                            entry["value"],
+                            separators=(",", ":"),
+                        )
+
                 return SandboxResult(
                     outcome,
                     passed,
                     tests_total,
                     elapsed,
                     failed,
+                    first_failure_actual=first_failure_actual,
                 )
 
             except (ValueError, TypeError, KeyError):
