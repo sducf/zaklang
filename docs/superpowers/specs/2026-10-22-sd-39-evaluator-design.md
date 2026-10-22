@@ -93,8 +93,9 @@ attempt record and doesn't have to inherit fields it doesn't use.
 ## Behavior
 
 **Sandbox change (small, additive).**
-- `_score_report` also returns the candidate's value for the first failing
-  test as compact JSON, or `None` if that call raised.
+- After scoring, `_execute` takes the candidate's value for the first failing
+  test as compact JSON, or `None` if that call raised. `_score_report` is
+  unchanged.
 - `SandboxResult` gets one new field, `first_failure_actual: str | None`.
 - Expected answers stay host-side. The CLI output gains only the candidate's
   own value, never a hidden one.

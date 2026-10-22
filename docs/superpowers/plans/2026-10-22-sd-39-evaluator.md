@@ -29,7 +29,7 @@
 **Files:** Modify `sandbox/runner.py` and `sandbox/tests/test_runner.py`.
 
 - [x] Add a test: when case 2 of 5 returns a wrong value, `first_failure_actual` is that value as JSON. When it raised, the field is `None`.
-- [x] `_score_report` returns `(passed, failed, first_failure_actual)`. `_execute` passes it into `SandboxResult(first_failure_actual=...)`.
+- [x] `_execute` reads the first failing entry of the validated report and sets `SandboxResult.first_failure_actual`. `_score_report` is unchanged, so its existing tests keep passing.
 - [x] Run `python -m unittest discover -s sandbox/tests -v`; all pass, old tests unchanged.
 - [x] Commit `SD-39: Keep the first failing result in sandbox results`.
 
