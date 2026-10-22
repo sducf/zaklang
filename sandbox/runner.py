@@ -423,7 +423,7 @@ def evaluate(
                         "line": exc.lineno or 1,
                         "col": exc.offset or 1,
                         "code": "SYNTAX_ERROR",
-                        "message": "Python syntax error",
+                        "message": exc.msg or "Python syntax error",
                     }
                 ],
             )
