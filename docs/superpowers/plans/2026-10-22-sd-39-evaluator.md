@@ -19,38 +19,38 @@
 - Create `zakbench/__init__.py`, `zakbench/evaluation/__init__.py`, `zakbench/tests/__init__.py`.
 - Create `zakbench/evaluation/metrics.py` and `zakbench/tests/test_metrics.py`.
 
-- [ ] Write the metrics tests (one pass, repaired pass, all fail, empty raises, repair identity).
-- [ ] Implement `Attempt`, `RunMetrics` and `compute_run_metrics()`.
-- [ ] Run `python -m unittest discover -s zakbench/tests -t .`; all pass.
-- [ ] Commit `SD-39: Compute per-run token and latency metrics`.
+- [x] Write the metrics tests (one pass, repaired pass, all fail, empty raises, repair identity).
+- [x] Implement `Attempt`, `RunMetrics` and `compute_run_metrics()`.
+- [x] Run `python -m unittest discover -s zakbench/tests -t .`; all pass.
+- [x] Commit `SD-39: Compute per-run token and latency metrics`.
 
 ### Task 2: Keep the first failing value in the sandbox
 
 **Files:** Modify `sandbox/runner.py` and `sandbox/tests/test_runner.py`.
 
-- [ ] Add a test: when case 2 of 5 returns a wrong value, `first_failure_actual` is that value as JSON. When it raised, the field is `None`.
-- [ ] `_score_report` returns `(passed, failed, first_failure_actual)`. `_execute` passes it into `SandboxResult(first_failure_actual=...)`.
-- [ ] Run `python -m unittest discover -s sandbox/tests -v`; all pass, old tests unchanged.
-- [ ] Commit `SD-39: Keep the first failing result in sandbox results`.
+- [x] Add a test: when case 2 of 5 returns a wrong value, `first_failure_actual` is that value as JSON. When it raised, the field is `None`.
+- [x] `_score_report` returns `(passed, failed, first_failure_actual)`. `_execute` passes it into `SandboxResult(first_failure_actual=...)`.
+- [x] Run `python -m unittest discover -s sandbox/tests -v`; all pass, old tests unchanged.
+- [x] Commit `SD-39: Keep the first failing result in sandbox results`.
 
 ### Task 3: Evaluator
 
 **Files:** Create `zakbench/evaluation/evaluator.py` and `zakbench/tests/test_evaluator.py`.
 
-- [ ] Write the evaluator tests from the spec:
+- [x] Write the evaluator tests from the spec:
   - Mock `sandbox.runner._execute` for the pass, fail, raised, timeout and crash cases.
   - Use the real compiler for the Zak compile error.
   - Add the no-output check and the 500-char bound.
-- [ ] Implement `EvalResult` and `evaluate()`: call the sandbox, build `per_test`, then build the summary for each outcome.
-- [ ] Run all tests: zakbench, sandbox, `pytest compiler/tests`.
-- [ ] Commit `SD-39: Add hidden-test evaluator with bounded failure summary`.
+- [x] Implement `EvalResult` and `evaluate()`: call the sandbox, build `per_test`, then build the summary for each outcome.
+- [x] Run all tests: zakbench, sandbox, `pytest compiler/tests`.
+- [x] Commit `SD-39: Add hidden-test evaluator with bounded failure summary`.
 
 ### Task 4: Docs and PR
 
 **Files:** Modify `zakbench/evaluation/README.md`.
 
-- [ ] Document `evaluate()`, the summary format, `compute_run_metrics()`, the test command and the Docker requirement.
-- [ ] Commit `SD-39: Document the evaluator and run metrics`.
+- [x] Document `evaluate()`, the summary format, `compute_run_metrics()`, the test command and the Docker requirement.
+- [x] Commit `SD-39: Document the evaluator and run metrics`.
 - [ ] Run the naming check, push, and open the PR. The PR body notes:
   - the reason for the interface change
   - the sandbox field addition (tell Horacio)
