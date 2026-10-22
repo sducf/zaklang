@@ -138,27 +138,33 @@ prompt.
 - `reference.py` is a plain Python solution that defines the function named by
   `functionName`, with parameters in `inputs` order. It uses only the standard
   library. Every task has one (SD-37).
-- `reference.zak` is a hand-written Zak solution with the same signature. The
-  three sample tasks include these as part of SD-35. Grammar checks live in
+- `reference.zak` is a hand-written Zak solution with the same signature,
+  written against `spec/zak-core-v0.1.md`. Every task has one (SD-35 for the
+  three sample tasks, SD-43 for the rest). Grammar checks live in
   `compiler/tests/conformance`, and SD-34's corpus test runs the transpiled
   references against their hidden tests.
 
 ### check_references.py
 
-Run from the repository root:
+Run from the repository root, with `compiler/requirements.txt` installed:
 
 ```sh
 python3 zakbench/tasks/check_references.py
+python3 -m unittest discover -s zakbench/tasks   # tests for the checker itself
 ```
 
 For every task folder it checks that both JSON files parse, `task.json` has
 every field and an `id` matching the folder, `hidden_tests.json` has 5 to 12
-cases whose `inputs` match the task's arity, and `reference.py` exists. It then
-runs `reference.py` in a fresh, isolated, time-limited Python subprocess and
-compares each result to `expected` by value.
+cases whose `inputs` match the task's arity, and both `reference.py` and
+`reference.zak` exist. It runs `reference.py` as is, and compiles and
+transpiles `reference.zak` to Python first. Each runs in a fresh, isolated,
+time-limited Python subprocess that compares each result to `expected` by
+value. A Zak compile or transpile failure prints the compiler error as
+`line:col: CODE: message`.
 
-It prints one `PASS` or `FAIL` line per task and exits 0 only if every task
-passes. Failures name the case number but never print hidden-test values.
+It prints one `PASS` or `FAIL` line per task with the passing case counts
+for each language, for example `array_sum: PASS py 6/6, zak 6/6`, and exits 0
+only if every task passes. Failures name the case number but never print hidden-test values.
 
 ---
 
@@ -168,5 +174,5 @@ passes. Failures name the case number but never print hidden-test values.
 2. Write `task.json` with the fields above.
 3. Write `hidden_tests.json` with 5 to 12 cases, including at least one edge
    case.
-4. Write `reference.py`.
+4. Write `reference.py` and `reference.zak`.
 5. Run `python3 zakbench/tasks/check_references.py` and confirm it exits 0.

@@ -1,10 +1,11 @@
-"""Check every ZakBench task folder and prove its reference.py passes its hidden tests.
+"""Check every ZakBench task folder and prove its references pass its hidden tests.
 
-Usage, from the repository root:
+Usage, from the repository root, with compiler/requirements.txt installed:
 
     python3 zakbench/tasks/check_references.py
 
-Each reference runs in a fresh, isolated, time-limited Python subprocess.
+reference.py runs as is. reference.zak is compiled and transpiled to Python
+first. Each reference runs in a fresh, isolated, time-limited Python subprocess.
 Failures report only the task and case number, never hidden-test values,
 so the hidden tests do not end up in logs.
 
@@ -18,6 +19,10 @@ import sys
 import tempfile
 
 TASKS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(TASKS_DIR.parents[1]))
+
+from compiler.src import TranspileError, compile as compile_zak, transpile  # noqa: E402
+
 TIMEOUT_S = 5
 MIN_CASES = 5
 MAX_CASES = 12
@@ -66,46 +71,82 @@ def structure_problems(folder):
         for index, case in enumerate(cases, start=1):
             if set(case) != {'inputs', 'expected'} or len(case['inputs']) != arity:
                 problems.append(f'case {index} does not match the task inputs')
-    if not (folder / 'reference.py').is_file():
-        problems.append('reference.py is missing')
+    for name in ('reference.py', 'reference.zak'):
+        if not (folder / name).is_file():
+            problems.append(f'{name} is missing')
     return problems
 
 
-def run_reference(folder):
-    """Run reference.py against the hidden tests; return (passed, total, problem)."""
+def run_solution(folder, name, source):
+    """Run Python source against the hidden tests; return (passed, total, problem)."""
     task = json.loads((folder / 'task.json').read_text(encoding='utf-8'))
     cases_path = folder / 'hidden_tests.json'
     total = len(json.loads(cases_path.read_text(encoding='utf-8')))
     with tempfile.TemporaryDirectory() as workdir:
+        solution_path = Path(workdir) / 'solution.py'
+        solution_path.write_text(source, encoding='utf-8')
         try:
             result = subprocess.run(
                 [sys.executable, '-I', '-c', CHILD,
-                 str(folder / 'reference.py'), str(cases_path), task['functionName']],
+                 str(solution_path), str(cases_path), task['functionName']],
                 cwd=workdir, capture_output=True, text=True, timeout=TIMEOUT_S)
         except subprocess.TimeoutExpired:
-            return 0, total, f'timed out after {TIMEOUT_S}s'
+            return 0, total, f'{name} timed out after {TIMEOUT_S}s'
     if result.returncode != 0:
-        return 0, total, 'reference.py crashed or does not define the function'
+        return 0, total, f'{name} crashed or does not define the function'
     failed = json.loads(result.stdout)
     if failed:
-        return total - len(failed), total, 'failed case ' + ', '.join(map(str, failed))
+        return total - len(failed), total, f'{name} failed case ' + ', '.join(map(str, failed))
     return total, total, None
+
+
+def run_reference(folder):
+    """Run reference.py against the hidden tests; return (passed, total, problem)."""
+    return run_solution(folder, 'reference.py', (folder / 'reference.py').read_text(encoding='utf-8'))
+
+
+def describe(error):
+    """Format a compiler error the same way the compiler CLI does."""
+    return f'{error.line}:{error.col}: {error.code}: {error.message}'
+
+
+def run_zak_reference(folder):
+    """Compile, transpile and run reference.zak against the hidden tests; return (passed, total, problem)."""
+    total = len(json.loads((folder / 'hidden_tests.json').read_text(encoding='utf-8')))
+    result = compile_zak((folder / 'reference.zak').read_text(encoding='utf-8'))
+    if not result.ok or result.ast is None:
+        return 0, total, 'reference.zak does not compile: ' + describe(result.errors[0])
+    try:
+        source = transpile(result.ast)
+    except TranspileError as error:
+        return 0, total, 'reference.zak does not transpile: ' + describe(error.errors[0])
+    return run_solution(folder, 'reference.zak', source)
+
+
+def check_task(folder):
+    """Check one task folder; return (ok, report line)."""
+    problems = structure_problems(folder)
+    if problems:
+        return False, f'{folder.name}: FAIL ' + '; '.join(problems)
+    counts = []
+    failures = []
+    for label, run in (('py', run_reference), ('zak', run_zak_reference)):
+        passed, total, problem = run(folder)
+        counts.append(f'{label} {passed}/{total}')
+        if problem:
+            failures.append(problem)
+    if failures:
+        return False, f'{folder.name}: FAIL ' + ', '.join(counts) + ' ' + '; '.join(failures)
+    return True, f'{folder.name}: PASS ' + ', '.join(counts)
 
 
 def main():
     folders = sorted(path for path in TASKS_DIR.iterdir() if path.is_dir() and not path.name.startswith(('.', '_')))
     passed_tasks = 0
     for folder in folders:
-        problems = structure_problems(folder)
-        if problems:
-            print(f'{folder.name}: FAIL ' + '; '.join(problems))
-            continue
-        passed, total, problem = run_reference(folder)
-        if problem:
-            print(f'{folder.name}: FAIL {passed}/{total} {problem}')
-            continue
-        print(f'{folder.name}: PASS {passed}/{total}')
-        passed_tasks += 1
+        ok, line = check_task(folder)
+        print(line)
+        passed_tasks += ok
     print(f'{len(folders)} tasks, {passed_tasks} passed')
     return 0 if folders and passed_tasks == len(folders) else 1
 
