@@ -1,0 +1,1 @@
+@solve(weight_kg:I,express:B,member:B)I{c:=500+125*(weight_kg-1);?express{c+=1000}?member{c/=2}^c}

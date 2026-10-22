@@ -1,0 +1,1 @@
+@solve(text:S)B{cl:={")":"(","]":"[","}":"{"};st:[S]=[];~c:text{?c@cl{?#st==0{^F}?pop(st)!=cl[c]{^F}}:{st<<c}}^#st==0}
