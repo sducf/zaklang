@@ -1,8 +1,9 @@
 # Zak Core v0.1
 
 **Spec version:** 0.1  
-**Model ID:** PENDING  
-**Token count:** PENDING — measure with deployed model's `/tokenize` endpoint
+**Target model:** Llama 3.1 8B Instruct (Q4_K_M GGUF)
+**Token count:** PENDING — requires verification using the deployed model's `/tokenize` endpoint
+**Compiler validation:** 3/4 reference examples pass the current SD1 compiler subset. The array comprehension example uses valid Zak Core v0.1 syntax but is not yet supported by the SD1 compiler.
 
 ## zak_spec
 
