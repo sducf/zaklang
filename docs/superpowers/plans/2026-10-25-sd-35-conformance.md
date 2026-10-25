@@ -49,15 +49,17 @@ Reuse the existing sandbox and share its container lifecycle. A separate Docker 
 
 **Interfaces:** 15 explicit parameterized stdout checks and three explicit parameterized reference checks. Syntax-check all emitted Python with Python 3.12 grammar compatibility and builtin `compile`; call `execute_program` for stdout and `zakbench.evaluation.evaluate` for hidden-test references.
 
-- [ ] Add the conformance tests and require the exact 15 fixture names and three sample reference files.
-- [ ] Verify the tests detect an incorrect expected stdout and a wrong reference result, then restore fixtures.
-- [ ] Strengthen construct coverage assertions for the constructs in the fixture coverage table.
-- [ ] Update documentation with Docker setup, test commands, guarantees, and the separation from trusted development subprocess checks.
-- [ ] Run conformance, all relevant unit suites, full Docker smoke, and naming validation; record results below.
-- [ ] Commit as `SD-35-Run conformance fixtures and references through isolation`.
+- [x] Add the conformance tests and require the exact 15 fixture names and three sample reference files.
+- [x] Verify the tests detect an incorrect expected stdout and a wrong reference result, then restore fixtures.
+- [x] Strengthen construct coverage assertions for the constructs in the fixture coverage table.
+- [x] Update documentation with Docker setup, test commands, guarantees, and the separation from trusted development subprocess checks.
+- [x] Run conformance, all relevant unit suites, full Docker smoke, and naming validation; record results below.
+- [x] Commit as `SD-35-Run conformance fixtures and references through isolation`.
 
 ## Execution record
 
 Baseline: updated main `ceb4b59`; branch `SD-35-sandbox-conformance`; 308 tests pass. Built the existing sandbox image and all 24 smoke checks passed before changes. Work proceeds in the user's requested checkout.
 
 Task 1: 28 new sandbox tests pass (including the combined output limit regression); 48 sandbox/evaluator checks pass in total. All 24 existing Docker smoke checks pass. Real standalone checks preserve raw bytes and stderr, handle empty output, crashes, timeouts and output limits, fail for a missing image, and leave no containers behind.
+
+Task 2: conformance 38 passed (15 stdout programs, three sample references covering 17 hidden cases, and 20 grammar checks). Mutation checks correctly fail for an extra expected newline, invalid Zak, an incorrect reference result, and missing Docker; all fixture changes were restored. Full pytest: 357 passed plus three subtests. Naming-script tests: 15 passed. Compiler pyright: zero errors/warnings. Independent branch review follows implementation.

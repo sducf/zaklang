@@ -212,18 +212,29 @@ Void calls can be statements but cannot be used as values.
 | `INTERNAL_ERROR` | Unexpected compiler defect; analysis failed |
 | `IO_ERROR` | CLI cannot read the source file |
 
-## Limits and conformance handoff
+## Limits and executable conformance
 
 Passing these checks does not prove runtime safety or correct output. They
 cannot establish termination, index bounds, map-key existence, divisor
 nonzero, or hidden-test correctness. Runtime execution and exact stdout
-comparison in the production pipeline still depend on isolated execution
-support.
+comparison are checked separately through the Docker sandbox.
 
 The [conformance directory](tests/conformance/README.md) has 15 programs and
-expected stdout. Three task folders contain `reference.zak`. SD-32 checks
-all 18 statically; SD-34's development tests syntax-check all emitted
-programs, compare all 15 fixture outputs, and validate all three references
-against their 17 hidden cases in fresh, time-limited Python subprocesses.
-Those trusted-example tests do not provide the SD-21 production sandbox or
-SD-39 evaluator; SD-35's production conformance integration remains.
+expected stdout. SD-35's `test_conformance.py` compiles and transpiles each
+program, syntax-checks emitted Python, executes it through SD-21's Docker
+sandbox, and compares stdout bytes exactly. It also checks the sample
+`array_sum`, `palindrome`, and `frequency_count` Zak references against all
+17 hidden cases through SD-39's evaluator. Missing dependencies fail these
+checks instead of skipping execution.
+
+With Docker running, build the image and run the suite from the repository
+root:
+
+```sh
+docker build -t zaklang-sandbox ./sandbox
+.venv/bin/python -m pytest compiler/tests/conformance -q
+```
+
+Running `pytest compiler/tests` includes these Docker checks. SD-34's
+`test_transpiler_corpus.py` remains separate development verification of
+trusted fixtures and available references in time-limited Python subprocesses.

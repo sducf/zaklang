@@ -1,6 +1,6 @@
-# SD-35 conformance fixtures
+# SD-35 executable conformance suite
 
-This is the fixture increment of SD-35. The 15 hand-written programs and
+The 15 hand-written programs and
 their `.expected` files describe exact stdout, including the final newline.
 They follow `compiler/src/grammar.txt`; integer division uses floor semantics.
 Programs avoid dependence on map iteration order and float rounding.
@@ -27,15 +27,46 @@ The three sample task folders also contain `reference.zak` implementations
 with the function and parameter names required by their `task.json` files.
 Reference solutions are development artifacts, never prompt inputs.
 
-## Run the current checks
+## Run the suite
 
-From the repository root, using Python 3.12 or newer:
+From the repository root, using Python 3.12 or newer and a running Docker
+daemon (enable WSL integration in Docker Desktop when using WSL):
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r compiler/requirements-dev.txt
-.venv/bin/python -m pytest compiler/tests
+docker build -t zaklang-sandbox ./sandbox
+.venv/bin/python -m pytest compiler/tests/conformance -q
 ```
+
+`test_conformance.py` checks each of the 15 programs through the public
+`compiler.src.compile` and `transpile` APIs, syntax-checks emitted Python
+(including Python 3.12 grammar compatibility), then executes it with
+`sandbox.runner.execute_program`. It compares stdout bytes exactly with
+`.expected`: spaces, blank lines, line endings, and final newlines matter.
+Stderr is separate, and a nonzero exit cannot pass even if stdout matches.
+
+The same test module compiles and transpiles `array_sum`, `palindrome`, and
+`frequency_count` references, then passes their emitted Python through
+SD-39's evaluator and SD-21's Docker sandbox. All 17 hidden cases must pass.
+Failures identify the task and outcome without printing hidden case values.
+
+Each execution uses a disposable container with no network, a read-only
+filesystem, non-root user, dropped capabilities, resource limits, and a
+five-second timeout. Only the required files enter Docker. Expected stdout
+and hidden expected answers stay on the host. Containers are removed after
+successful runs and failures. Standalone output is limited to 65,536 bytes
+across stdout and stderr; oversized output fails.
+
+Missing compiler/transpiler support, Docker, the sandbox image, or fixture
+files fails the suite. There are no automatic skips or local execution
+fallbacks. Running all compiler tests now includes these Docker checks:
+
+```sh
+.venv/bin/python -m pytest compiler/tests -q
+```
+
+## Other checks
 
 `test_fixtures.py` loads the real grammar with Lark's LALR parser, parses every
 program and reference, checks fixture pairing, checks SD1 syntax coverage,
@@ -43,29 +74,16 @@ and verifies reference function/parameter names against task metadata.
 These are grammar checks. SD-32's `test_semantic.py` and `test_compile.py`
 add static checks for all 15 programs and all three references. SD-34's
 `test_transpiler_corpus.py` additionally syntax-checks all emitted Python,
-compares all 15 stdout files, and checks the three references against their
-17 hidden cases using fresh, time-limited development subprocesses. Those
-trusted-example checks are separate from the production sandbox integration.
+compares all 15 stdout files, and checks the available task references using
+fresh, time-limited development subprocesses. Those trusted-example checks
+are separate from this suite's Docker execution.
 To check the files statically:
 
 ```sh
 .venv/bin/python -m compiler.src compiler/tests/conformance zakbench/tasks
 ```
 
-## Remaining SD-35 work after isolated execution support
-
-SD-32 provides `compiler.src.compile(source)` and a dataclass AST; SD-34
-provides `compiler.src.transpile(program)`. Once the production sandbox and
-evaluator dependencies land:
-
-1. Add `test_conformance.py` to compile every program, assert compilation
-   succeeds, and transpile its AST.
-2. Syntax-check the emitted Python, then execute it through the project's
-   isolated execution service and compare stdout bytes with `.expected`.
-3. Compile and transpile each sample task's `reference.zak`, then run its
-   `solve` function against `hidden_tests.json` through the same isolation.
-4. Require all execution checks to pass before closing SD-35. Missing compiler,
-   transpiler, or sandbox support must fail the execution checks rather than
-   silently skip them.
-
-No generated program is executed by the current grammar checks.
+The grammar checks never execute generated code. Their construct assertions
+cover the supported SD1 families in the table above; comprehensions remain
+outside the compiler's supported subset. Expansion to 40 programs and CI
+wiring belong to later tickets.
