@@ -213,7 +213,8 @@ class TestRunner(unittest.TestCase):
                             {"ok": True, "value": i * 2}
                             for i in range(5)
                         ]
-                    })
+                    }).encode("utf-8"),
+                    "stderr": b"",
                 })()
 
             raise AssertionError(args)
@@ -326,10 +327,10 @@ class TestRunner(unittest.TestCase):
                 "run": "fake-id",
                 "wait": "0\n",
                 "inspect": json.dumps({"OOMKilled": False}),
-                "logs": json.dumps({"results": results}),
+                "logs": json.dumps({"results": results}).encode("utf-8"),
             }[args[0]]
 
-            return type("R", (), {"stdout": stdout})()
+            return type("R", (), {"stdout": stdout, "stderr": b""})()
 
         with patch.object(
             runner,

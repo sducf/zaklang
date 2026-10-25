@@ -54,6 +54,27 @@ From the repository root:
 
     python -m sandbox.runner --task array_sum --language python --file zakbench/tasks/array_sum/reference.py
 
+## Execute a standalone program
+
+Conformance fixtures use `sandbox.runner.execute_program(python_source)`.
+It syntax-checks Python on the host and runs the module inside the same
+restricted Docker image as task evaluation. Only the source file is mounted;
+expected stdout stays on the host. No candidate code executes on the host.
+
+`ProgramResult` contains `outcome`, `stdout` and `stderr` as separate raw byte
+streams, `exit_code`, `execution_ms`, and optional `detail`. `pass` means the
+program exited with code zero; callers must compare `stdout` with their own
+expected bytes. Whitespace, CRLF, Unicode, and final newlines are preserved.
+Other outcomes are `not_run` for Python syntax errors, `timeout`, `oom`, and
+`crash` for nonzero exits or output exceeding 65,536 bytes across both streams.
+Oversized output is truncated and always fails. The five-second default and
+60-second maximum timeout apply, and every container is removed on exit.
+Missing Docker or a missing image raises an error, with no host fallback.
+
+After building the image, run the full SD-35 checks from the repository root:
+
+    .venv/bin/python -m pytest compiler/tests/conformance -q
+
 ## Backend integration
 
 A future authenticated benchmark worker can call
