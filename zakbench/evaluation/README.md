@@ -47,6 +47,33 @@ F5 run metrics: `passed`, `attempts_used`, `prompt_tokens_total`,
 `repair_tokens`, and `latency_ms_total`. A run passes if its last attempt
 passed, and `repair_tokens = total_tokens - first_attempt_tokens`.
 
+## summary.py
+
+`summarize(runs)` turns the stored run records of one suite run into the PRD F5
+aggregate metrics (SD-44). It is a pure function: it reads only the run
+records, so `zakbench summarize` can recompute a summary without inference.
+The runs must form one Zak run and one Python run per task under one run
+definition. Otherwise it raises `ValueError`.
+
+The summary has an `overall` block, the same block for each task `category`
+in `by_category`, and a list of `errors`. Each block holds:
+
+| Metric | Meaning |
+|---|---|
+| `pass_at_1` | Share of tasks whose first attempt passed, per language |
+| `pass_at_k` | Share of tasks that passed within `max_attempts` (K), per language |
+| `correctness_gap` | Zak `pass_at_k` minus Python `pass_at_k` |
+| `repair_token_share` | `repair_tokens` divided by `total_tokens`, over all runs of a language |
+| `paired.tasks` | Tasks that both languages solved |
+| `paired.<language>` | Mean and median `total_tokens` over the paired tasks only |
+| `paired.token_ratio` | Zak tokens divided by Python tokens, summed over the paired tasks |
+| `paired.token_ratio_by_task` | Zak tokens divided by Python tokens, for each paired task |
+| `solved_by_zak_only`, `solved_by_python_only`, `solved_by_neither` | Tasks left out of the paired token stats |
+
+An error run (a run that crashed the harness) counts as not passed. Rates and
+ratios have 4 decimal places. A ratio is `null` when there is nothing to
+divide by, for example when no task is paired.
+
 ## Tests
 
 Docker is faked, so no image is needed. The Zak tests need
