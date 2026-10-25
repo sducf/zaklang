@@ -59,3 +59,14 @@ def test_sample_reference_hidden_tests(task_id):
     assert result.tests_total == total
     assert result.tests_passed == total
     assert result.per_test == [True] * total
+
+
+def test_evaluator_ignores_direct_candidate_stdout():
+    """Native/subprocess output must not corrupt the final grader report."""
+    result = evaluate(
+        "import os\nos.write(1, b'debug\\n')\n"
+        "def solve(nums): return sum(nums)\n",
+        "array_sum", "python",
+    )
+    assert result.exec_outcome == "pass"
+    assert result.tests_passed == result.tests_total == 6

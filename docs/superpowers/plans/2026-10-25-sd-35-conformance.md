@@ -63,3 +63,19 @@ Baseline: updated main `ceb4b59`; branch `SD-35-sandbox-conformance`; 308 tests 
 Task 1: 28 new sandbox tests pass (including the combined output limit regression); 48 sandbox/evaluator checks pass in total. All 24 existing Docker smoke checks pass. Real standalone checks preserve raw bytes and stderr, handle empty output, crashes, timeouts and output limits, fail for a missing image, and leave no containers behind.
 
 Task 2: conformance 38 passed (15 stdout programs, three sample references covering 17 hidden cases, and 20 grammar checks). Mutation checks correctly fail for an extra expected newline, invalid Zak, an incorrect reference result, and missing Docker; all fixture changes were restored. Full pytest: 357 passed plus three subtests. Naming-script tests: 15 passed. Compiler pyright: zero errors/warnings. Independent branch review follows implementation.
+
+## Independent review and compatibility fix
+
+The read-only branch review ran 105 targeted checks and found one Important
+compatibility regression: parsing every Docker stdout line broke correct task
+candidates that write directly to stdout before the grader's JSON report.
+Reproduced with `os.write(1, b"debug\n")` and a correct array-sum solution.
+Added a real Docker regression test and observed crash before the fix.
+Task grading now retains its previous last-line report selection; standalone
+programs still capture all bytes. The regression and 48 sandbox/evaluator
+checks then passed. Full pytest after the fix: 358 passed plus three subtests;
+naming-script tests: 15 passed; compiler pyright: zero errors or warnings.
+No other review findings. CI wiring, 40-program expansion, and negative
+compiler tests remain outside scope, as the ticket specifies.
+
+Final Docker verification after the fix: all 24 full smoke checks and standalone raw-byte, crash, timeout, output-limit, missing-image and cleanup checks pass. No sandbox containers remain.

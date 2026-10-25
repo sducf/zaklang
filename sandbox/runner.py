@@ -197,7 +197,7 @@ def _execute(
         execution = _run_container(
             [(solution, "/job/solution.py"), (task_file, "/job/task.json"),
              (inputs, "/job/inputs.json")],
-            image=image, timeout_s=timeout_s,
+            image=image, timeout_s=timeout_s, report_only=True,
         )
 
     if execution.outcome != "pass":
@@ -228,7 +228,7 @@ def _execute(
 
 def _run_container(
     mounts: list[tuple[Path, str]], *, image: str, timeout_s: float,
-    command: tuple[str, ...] = (),
+    command: tuple[str, ...] = (), report_only: bool = False,
 ) -> ProgramResult:
     """Shared isolated execution and cleanup for programs and task grading."""
     started = time.monotonic()
@@ -279,8 +279,10 @@ def _run_container(
                 execution_ms=(time.monotonic() - started) * 1000,
                 detail="Container exceeded memory limit",
             )
-        # No decoding, newline translation, stripping, or tail truncation.
-        logs = _docker("logs", name, binary=True)
+        # Task grading consumes its final JSON report; standalone programs
+        # preserve every stdout byte without decoding or newline translation.
+        log_options = ("--tail", "1") if report_only else ()
+        logs = _docker("logs", *log_options, name, binary=True)
         return ProgramResult(
             "pass" if exit_code == 0 else "crash",
             stdout=logs.stdout, stderr=logs.stderr, exit_code=exit_code,
