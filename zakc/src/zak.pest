@@ -1,0 +1,63 @@
+// PEG equivalent of compiler/src/grammar.txt. No language comments are accepted.
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+program = { SOI ~ seq ~ EOI }
+seq = { (compound ~ ";"? | simple ~ ";")* ~ simple? }
+compound = _{ function | if_stmt | for_stmt | while_stmt }
+simple = _{ declare | append | assign | return_stmt | break_stmt | continue_stmt | call }
+block = { "{" ~ seq ~ "}" }
+function = { "@" ~ name ~ "(" ~ params? ~ ")" ~ ty ~ block }
+params = { parameter ~ ("," ~ parameter)* }
+parameter = { name ~ ":" ~ ty }
+declare = { name ~ ":" ~ ty? ~ "=" ~ expr }
+assign = { target ~ assign_op ~ expr }
+assign_op = @{ "+=" | "-=" | "*=" | "/=" | "%=" | "=" ~ !"=" }
+append = { target ~ "<<" ~ expr }
+return_stmt = { "^" ~ expr }
+break_stmt = { "!" }
+continue_stmt = { ">" }
+if_stmt = { "?" ~ expr ~ block ~ (":" ~ (if_stmt | block))? }
+for_stmt = { "~" ~ names ~ ":" ~ iteration ~ block }
+names = { name ~ ("," ~ name)? }
+while_stmt = { "~" ~ expr ~ block }
+iteration = { sum ~ (".." ~ sum)? }
+target = { name ~ index_suffix* }
+ty = { array_type | map_type | primitive }
+array_type = { "[" ~ ty ~ "]" }
+map_type = { "{" ~ ty ~ ":" ~ ty ~ "}" }
+primitive = @{ "I" | "R" | "B" | "S" }
+expr = { ternary }
+ternary = { or_expr ~ ("?" ~ ternary ~ ":" ~ ternary)? }
+or_expr = { and_expr ~ (or_op ~ and_expr)* }
+or_op = { "|" }
+and_expr = { not_expr ~ (and_op ~ not_expr)* }
+and_op = { "&" }
+not_expr = { not_op* ~ compare }
+not_op = { "!" ~ !"=" }
+compare = { sum ~ (compare_op ~ sum)? }
+compare_op = @{ "==" | "!=" | "<=" | ">=" | "<" ~ !"<" | ">" | "@" }
+sum = { product ~ (add_op ~ product)* }
+add_op = { "+" | "-" }
+product = { unary ~ (mul_op ~ unary)* }
+mul_op = { "*" | "/" | "%" }
+unary = { unary_op* ~ post }
+unary_op = { "-" | "#" }
+post = { atom ~ (slice_suffix | index_suffix)* }
+slice_suffix = { "[" ~ lower? ~ ":" ~ upper? ~ "]" }
+lower = { expr }
+upper = { expr }
+index_suffix = { "[" ~ expr ~ "]" }
+atom = _{ float | integer | string | boolean | cast | call | comprehension | array | map | name | parenthesized }
+parenthesized = { "(" ~ expr ~ ")" }
+call = { name ~ "(" ~ arguments? ~ ")" }
+arguments = { expr ~ ("," ~ expr)* }
+cast = { primitive ~ "(" ~ expr ~ ")" }
+array = { "[" ~ (expr ~ ("," ~ expr)*)? ~ "]" }
+map = { "{" ~ (pair ~ ("," ~ pair)*)? ~ "}" }
+pair = { expr ~ ":" ~ expr }
+comprehension = { "[" ~ expr ~ "~" ~ name ~ ":" ~ iteration ~ ("?" ~ expr)? ~ "]" }
+boolean = @{ ("T" | "F") ~ !ASCII_ALPHANUMERIC }
+name = @{ (ASCII_ALPHA_LOWER | "_") ~ (ASCII_ALPHA_LOWER | ASCII_DIGIT | "_")* }
+float = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+integer = @{ ASCII_DIGIT+ }
+// JSON decoding validates escapes and rejects invalid literal values later.
+string = @{ "\"" ~ ("\\" ~ ANY | !("\"" | "\n" | "\r") ~ ANY)* ~ "\"" }

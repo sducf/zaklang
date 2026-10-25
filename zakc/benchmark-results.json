@@ -1,0 +1,20 @@
+{
+  "python": {
+    "implementation": "Python",
+    "programs": 25,
+    "rounds": 200,
+    "compilations": 5000,
+    "seconds": 2.8359647919969575,
+    "microseconds_per_program": 567.1929583993915
+  },
+  "rust": {
+    "compilations": 5000,
+    "implementation": "Rust (release)",
+    "microseconds_per_program": 80.713668,
+    "programs": 25,
+    "rounds": 200,
+    "seconds": 0.40356834
+  },
+  "ratio_python_seconds_over_rust_seconds": 7.027223176121688,
+  "scope": "25 existing programs; parse + check + emit + Python AST validation, warm in-process"
+}
