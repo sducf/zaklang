@@ -14,6 +14,10 @@ from api.schemas.benchmark import (
     TaskResponse,
 )
 from api.controllers.auth import get_current_user_controller
+from api.controllers.benchmark import (
+    get_task_controller,
+    list_tasks_controller,
+)
 from database.models import User
 
 router = APIRouter(tags=["benchmark"])
@@ -28,14 +32,14 @@ def _not_implemented() -> NoReturn:
 
 @router.get("/tasks", response_model=list[TaskResponse])
 def list_tasks() -> list[TaskResponse]:
-    _not_implemented()
+    return list_tasks_controller()
 
 
 @router.get("/tasks/{task_id}", response_model=TaskResponse)
 def get_task(
     task_id: str = Path(pattern=TASK_ID_PATTERN),
 ) -> TaskResponse:
-    _not_implemented()
+    return get_task_controller(task_id)
 
 
 @router.post("/compile", response_model=CompileResponse)
