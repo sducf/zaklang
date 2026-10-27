@@ -1,0 +1,1 @@
+@solve(events:[S]){S:I}{m:{S:I}={};~e:events{p:=spl(e," ");k:=p[1];q:=I(p[2]);?!k@m{m[k]=0}?p[0]=="add"{m[k]+=q}:{m[k]=max(0,m[k]-q)}}r:{S:I}={};~k,v:m{?v>0{r[k]=v}}^r}
