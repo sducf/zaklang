@@ -7,9 +7,12 @@ import unittest
 from unittest.mock import patch
 
 from fastapi import HTTPException
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from api.controllers import benchmark
 from api.routes import benchmark as benchmark_routes
+from database.models import Attempt, Base, Evaluation, User
 
 
 class BenchmarkTaskControllerTests(unittest.TestCase):
@@ -105,6 +108,100 @@ class BenchmarkTaskControllerTests(unittest.TestCase):
 
         list_controller.assert_called_once_with()
         get_controller.assert_called_once_with("array_sum")
+
+
+class BenchmarkRunConversionTests(unittest.TestCase):
+    def setUp(self):
+        self.engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(self.engine)
+        self.session = sessionmaker(bind=self.engine)()
+        self.addCleanup(self.engine.dispose)
+        self.addCleanup(self.session.close)
+        self.user = User(email="user@example.com", password_hash="hash")
+        self.session.add(self.user)
+        self.session.flush()
+
+    def test_create_queued_run_persists_contract_defaults(self):
+        run = benchmark.create_queued_run(
+            self.session,
+            self.user,
+            "array_sum",
+            benchmark.Language.ZAK,
+        )
+
+        self.assertIsNotNone(run.id)
+        self.assertEqual(run.status, "queued")
+        self.assertEqual(run.model_name, "Llama 3.1 8B Instruct")
+        self.assertEqual(run.language, "zak")
+
+    def test_run_response_maps_attempt_evaluation_and_totals(self):
+        run = benchmark.create_queued_run(
+            self.session,
+            self.user,
+            "array_sum",
+            benchmark.Language.ZAK,
+        )
+        attempt = Attempt(
+            run_id=run.id,
+            attempt_number=1,
+            prompt_text="prompt",
+            generated_code="@solve(a:[I])I{^sum(a)}",
+            prompt_tokens=12,
+            completion_tokens=5,
+            total_tokens=17,
+            latency_ms=23.5,
+        )
+        self.session.add(attempt)
+        self.session.flush()
+        self.session.add(
+            Evaluation(
+                attempt_id=attempt.id,
+                compile_success=True,
+                compiler_output=json.dumps(
+                    [{"line": 1, "col": 1, "code": "X", "message": "ok"}]
+                ),
+                transpiled_code="def solve(a):\n    return sum(a)\n",
+                tests_passed=6,
+                tests_total=6,
+                correct=True,
+                exec_outcome="pass",
+                execution_ms=10,
+            )
+        )
+        self.session.commit()
+        self.session.refresh(run)
+
+        response = benchmark.run_to_response(run)
+
+        self.assertEqual(response.status, benchmark.RunStatus.QUEUED)
+        self.assertEqual(response.attempts_used, 1)
+        self.assertEqual(response.total_tokens, 17)
+        self.assertEqual(response.latency_ms_total, 23.5)
+        self.assertEqual(response.attempts[0].exec_outcome, benchmark.ExecutionOutcome.PASS)
+        self.assertEqual(response.attempts[0].compile_errors[0].code, "X")
+
+    def test_run_list_item_counts_related_attempts(self):
+        run = benchmark.create_queued_run(
+            self.session,
+            self.user,
+            "array_sum",
+            benchmark.Language.PYTHON,
+        )
+        self.session.add(
+            Attempt(
+                run_id=run.id,
+                attempt_number=1,
+                prompt_text="prompt",
+                generated_code="def solve(a): return sum(a)",
+            )
+        )
+        self.session.commit()
+        self.session.refresh(run)
+
+        item = benchmark.run_to_list_item(run)
+
+        self.assertEqual(item.language, benchmark.Language.PYTHON)
+        self.assertEqual(item.attempts_used, 1)
 
 
 if __name__ == "__main__":

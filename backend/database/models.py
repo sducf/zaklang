@@ -270,6 +270,12 @@ class Evaluation(Base):
         nullable=True,
     )
 
+    # Final sandbox outcome, such as pass, fail, or timeout.
+    exec_outcome: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
     # Execution and testing duration in milliseconds. -H
     execution_ms: Mapped[float | None] = mapped_column(
         Float,
