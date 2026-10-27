@@ -1,0 +1,18 @@
+{
+  "id": "word_pattern",
+  "title": "Word Pattern",
+  "category": "maps",
+  "prompt": "Given a pattern of lowercase letters and a string of words separated by single spaces, return true if the words follow the pattern and false otherwise. The words follow the pattern when there is exactly one word for each letter, the same letter always stands for the same word, and different letters always stand for different words. An empty string has no words.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "pattern",
+      "type": "string"
+    },
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "outputType": "boolean"
+}

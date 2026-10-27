@@ -1,0 +1,1 @@
+@solve(text:S)S{st:[S]=[];~c:text{?#st>0&st[#st-1]==c{pop(st)}:{st<<c}}^jn(st,"")}

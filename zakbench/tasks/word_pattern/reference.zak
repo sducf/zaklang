@@ -1,0 +1,1 @@
+@solve(pattern:S,text:S)B{w:[S]=[];?text!=""{w=spl(text," ")}?#w!=#pattern{^F}a:{S:S}={};b:{S:S}={};~i:0..#w{p:=pattern[i];?p@a{?a[p]!=w[i]{^F}}:?w[i]@b{^F}:{a[p]=w[i];b[w[i]]=p}}^T}
