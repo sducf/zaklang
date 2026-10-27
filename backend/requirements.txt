@@ -8,3 +8,4 @@ alembic
 python-dotenv
 pwdlib[argon2]
 PyJWT
+lark==1.3.1
