@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut paths = vec![];
 
-    for entry in std::fs::read_dir(root.join("compiler/tests/conformance"))? {
+    for entry in std::fs::read_dir(root.join("zakc/tests/conformance"))? {
         let path = entry?.path();
 
         if path.extension().is_some_and(|ext| ext == "zak") {
@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!(
         "{}",
-        serde_json::json!({"implementation":"Rust (release)","programs":sources.len(),
+        serde_json::json!({"implementation":if cfg!(debug_assertions) { "Rust (debug)" } else { "Rust (release)" },"programs":sources.len(),
         "rounds":rounds,"compilations":rounds*sources.len(),"seconds":elapsed,
         "microseconds_per_program":elapsed*1e6/(rounds*sources.len()) as f64})
     );

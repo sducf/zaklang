@@ -87,7 +87,7 @@ fn all_existing_programs_and_references_compile_to_real_python_ast() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap();
-    let corpus = root.join("compiler/tests/conformance");
+    let corpus = root.join("zakc/tests/conformance");
     let mut count = 0;
     for entry in std::fs::read_dir(corpus).unwrap() {
         let path = entry.unwrap().path();
@@ -107,7 +107,13 @@ fn all_existing_programs_and_references_compile_to_real_python_ast() {
             references += 1;
         }
     }
-    assert_eq!(references, 10);
+    let tasks = std::fs::read_dir(root.join("zakbench/tasks"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.join("task.json").is_file())
+        .count();
+    assert!(tasks > 0, "benchmark tasks must be present");
+    assert_eq!(references, tasks, "every task has a Zak reference");
 }
 
 #[test]

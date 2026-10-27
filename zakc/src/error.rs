@@ -81,6 +81,7 @@ impl ErrorTrace {
 }
 
 #[derive(Debug, Serialize, thiserror::Error)]
+#[cfg_attr(feature = "python", pyo3::pyclass(module = "zakc"))]
 #[error("{code}{}: {error}{}", position(.span), trace_text(.sources))]
 pub struct CompilerError {
     pub code: ErrorCode,

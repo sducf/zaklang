@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from compiler.src import compile as compile_zak, transpile
+import zakc
 from sandbox.runner import execute_program
 from zakbench.evaluation.evaluator import evaluate
 
@@ -29,9 +29,7 @@ SAMPLE_TASKS = ("array_sum", "palindrome", "frequency_count")
 
 def python_source(path):
     """Only compile and syntax-check on the host; never execute generated code."""
-    checked = compile_zak(path.read_text(encoding="utf-8"))
-    assert checked.ok and checked.ast is not None, checked.errors
-    source = transpile(checked.ast)
+    source = zakc.zak_transpile(path.read_text(encoding="utf-8")).source
     ast.parse(source, feature_version=(3, 12))
     builtins.compile(source, str(path.with_suffix(".py")), "exec", dont_inherit=True)
     return source

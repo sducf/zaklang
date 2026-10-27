@@ -48,6 +48,7 @@ struct Binding {
 
 /// Only `check` can construct this value; emission cannot accept unchecked syntax.
 #[derive(Debug)]
+#[cfg_attr(feature = "python", pyo3::pyclass(module = "zakc"))]
 pub struct CheckedProgram {
     pub(crate) program: Program,
     pub(crate) types: HashMap<NodeId, Type>,

@@ -22,3 +22,46 @@ pub fn zak_check(source: &str) -> Result<CheckedProgram, Vec<CompilerError>> {
 pub fn zak_transpile(source: &str) -> Result<TranspiledProgram, Vec<CompilerError>> {
     with_stack(|| zak_check(source)?.transpile().map_err(|error| vec![error]))
 }
+
+/// Python bindings for checking Zak source and generating Python.
+#[cfg(feature = "python")]
+#[pyo3::pymodule]
+mod zakc {
+    use pyo3::{exceptions::PyValueError, prelude::*};
+
+    #[pymodule_export]
+    use super::CheckedProgram;
+
+    #[pymodule_export]
+    use super::CompilerError;
+
+    #[pymodule_export]
+    use super::TranspiledProgram;
+
+    struct PythonErrors(Vec<CompilerError>);
+
+    impl From<PythonErrors> for PyErr {
+        fn from(errors: PythonErrors) -> Self {
+            PyValueError::new_err(
+                errors
+                    .0
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            )
+        }
+    }
+
+    /// Check Zak source, raising ValueError with diagnostics for invalid programs.
+    #[pyfunction]
+    fn zak_check(source: &str) -> Result<CheckedProgram, PythonErrors> {
+        super::zak_check(source).map_err(PythonErrors)
+    }
+
+    /// Generate Python without executing it, raising ValueError on compiler errors.
+    #[pyfunction]
+    fn zak_transpile(source: &str) -> Result<TranspiledProgram, PythonErrors> {
+        super::zak_transpile(source).map_err(PythonErrors)
+    }
+}

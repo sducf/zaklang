@@ -15,10 +15,20 @@ pub struct SourceMapEntry {
 }
 
 #[derive(Debug)]
+#[cfg_attr(feature = "python", pyo3::pyclass(module = "zakc"))]
 pub struct TranspiledProgram {
     pub source: String,
     pub python_ast: py::Suite,
     pub source_map: Vec<SourceMapEntry>,
+}
+
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl TranspiledProgram {
+    #[getter]
+    fn source(&self) -> &str {
+        &self.source
+    }
 }
 
 impl CheckedProgram {

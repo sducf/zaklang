@@ -63,7 +63,7 @@ pub struct NodeId(pub u32);
 pub enum Type {
     #[display("I")]
     Int,
-    /// Real is a float type of any size [16, 32, 64, 128]
+    /// Python float type
     #[display("R")]
     Real,
     #[display("B")]
@@ -81,7 +81,7 @@ pub enum Type {
 impl Type {
     /// Array types display as [T] for example
     /// We have to use Box<T> (Heap alloc) because it is a
-    /// recursive type assignemnt
+    /// recursive type assignment
     pub fn array(element: Self) -> Self {
         Self::Array(Box::new(element))
     }

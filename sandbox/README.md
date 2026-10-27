@@ -73,7 +73,9 @@ Missing Docker or a missing image raises an error, with no host fallback.
 
 After building the image, run the full SD-35 checks from the repository root:
 
-    .venv/bin/python -m pytest compiler/tests/conformance -q
+    PYTHONPATH="$PWD/zakc/target/python:$PWD" .venv/bin/python -m pytest -c zakc/pytest.ini zakc/tests/conformance -q
+
+Build the native Python extension first using [zakc test setup](../zakc/README.md#run-all-tests).
 
 ## Backend integration
 

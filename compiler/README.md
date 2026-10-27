@@ -1,4 +1,4 @@
-# ZakLang compiler
+# ZakLang compiler (legacy Python implementation)
 
 The SD-32 compiler parses Zak source and checks names, types, and control
 flow. The separate SD-34 transpiler turns its compiler-owned AST into
@@ -11,15 +11,14 @@ Use Python 3.12 or newer, from the repository root:
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r compiler/requirements-dev.txt
-.venv/bin/python -m compiler.src compiler/tests/conformance zakbench/tasks
-.venv/bin/python -m pytest compiler/tests
+.venv/bin/python -m compiler.src zakc/tests/conformance zakbench/tasks
 .venv/bin/pyright --project compiler/pyrightconfig.json
 ```
 
-The pytest command runs parser, semantic, emitter, snapshot, and trusted
-corpus/reference checks. Pyright separately checks Python types throughout
-`compiler/src` and `compiler/tests`; passing runtime tests alone does not
-establish that the Python annotations are correct. Pyright requires Node.js.
+The compiler test suite has moved to `zakc/tests` and exercises the native
+Rust implementation and its Python bindings. See [the complete test commands](../zakc/README.md#run-all-tests).
+Pyright separately checks this legacy implementation in `compiler/src`.
+Pyright requires Node.js.
 For editor diagnostics, select the repository-root `.venv/bin/python`
 interpreter. The compiler-specific Pyright configuration uses that environment
 and checks against Python 3.12 without changing the backend's configuration.
@@ -219,22 +218,9 @@ cannot establish termination, index bounds, map-key existence, divisor
 nonzero, or hidden-test correctness. Runtime execution and exact stdout
 comparison are checked separately through the Docker sandbox.
 
-The [conformance directory](tests/conformance/README.md) has 15 programs and
-expected stdout. SD-35's `test_conformance.py` compiles and transpiles each
-program, syntax-checks emitted Python, executes it through SD-21's Docker
-sandbox, and compares stdout bytes exactly. It also checks the sample
-`array_sum`, `palindrome`, and `frequency_count` Zak references against all
-17 hidden cases through SD-39's evaluator. Missing dependencies fail these
-checks instead of skipping execution.
-
-With Docker running, build the image and run the suite from the repository
-root:
-
-```sh
-docker build -t zaklang-sandbox ./sandbox
-.venv/bin/python -m pytest compiler/tests/conformance -q
-```
-
-Running `pytest compiler/tests` includes these Docker checks. SD-34's
-`test_transpiler_corpus.py` remains separate development verification of
-trusted fixtures and available references in time-limited Python subprocesses.
+The [conformance fixtures](../zakc/tests/conformance/README.md) and all compiler
+tests now live in `zakc`. The native suite checks the Rust AST, semantic
+metadata, diagnostics, CLI, and generated Python AST and snapshots. Python
+binding tests execute trusted examples in subprocesses, and the Docker suite
+checks isolated stdout and reference grading. Follow [zakc's test instructions](../zakc/README.md#run-all-tests)
+for setup and the exact commands to run every suite.
