@@ -2,6 +2,8 @@
 
 import json
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -12,7 +14,9 @@ from sqlalchemy.orm import sessionmaker
 
 from api.controllers import benchmark
 from api.routes import benchmark as benchmark_routes
-from database.models import Attempt, Base, Evaluation, User
+from database.models import Attempt, Base, BenchmarkRun, Evaluation, User
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
 class BenchmarkTaskControllerTests(unittest.TestCase):
@@ -260,6 +264,144 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as raised:
             benchmark.get_run_for_user(self.session, self.user, other_run.id)
         self.assertEqual(raised.exception.status_code, 404)
+
+    def test_background_worker_persists_attempts_and_terminal_status(self):
+        run = benchmark.create_queued_run(
+            self.session,
+            self.user,
+            "array_sum",
+            benchmark.Language.PYTHON,
+        )
+        self.session.commit()
+        result = SimpleNamespace(
+            exec_outcome="pass",
+            attempts=[
+                {
+                    "number": 1,
+                    "prompt": [{"role": "user", "content": "solve"}],
+                    "code": "def solve(nums): return sum(nums)",
+                    "prompt_tokens": 10,
+                    "completion_tokens": 4,
+                    "latency_ms": 12,
+                    "finish_reason": "stop",
+                    "compile_ok": True,
+                    "compile_errors": [],
+                    "transpiled_python": None,
+                    "tests_passed": 6,
+                    "tests_total": 6,
+                    "exec_outcome": "pass",
+                }
+            ],
+        )
+
+        with patch.object(
+            benchmark,
+            "SessionLocal",
+            side_effect=lambda: sessionmaker(bind=self.engine)(),
+        ), \
+                patch(
+                    "zakbench.runners.run.run_single",
+                    return_value=result,
+                ) as run_single:
+            benchmark.execute_run_in_background(
+                run.id,
+                "array_sum",
+                benchmark.Language.PYTHON,
+                "def solve(nums): return sum(nums)",
+            )
+
+        run_single.assert_called_once()
+        self.session.expire_all()
+        saved_run = self.session.get(BenchmarkRun, run.id)
+        self.assertEqual(saved_run.status, "passed")
+        self.assertIsNotNone(saved_run.completed_at)
+        self.assertEqual(len(saved_run.attempts), 1)
+        saved_attempt = saved_run.attempts[0]
+        self.assertEqual(saved_attempt.total_tokens, 14)
+        self.assertEqual(saved_attempt.evaluation.exec_outcome, "pass")
+        self.assertEqual(saved_attempt.evaluation.tests_passed, 6)
+
+    def test_background_worker_maps_fail_and_timeout_statuses(self):
+        for outcome, expected_status in (("fail", "failed"), ("timeout", "timeout")):
+            with self.subTest(outcome=outcome):
+                run = benchmark.create_queued_run(
+                    self.session,
+                    self.user,
+                    "array_sum",
+                    benchmark.Language.PYTHON,
+                )
+                self.session.commit()
+                result = SimpleNamespace(
+                    exec_outcome=outcome,
+                    attempts=[
+                        {
+                            "number": 1,
+                            "prompt": None,
+                            "code": "def solve(nums): return 0",
+                            "prompt_tokens": 0,
+                            "completion_tokens": 0,
+                            "latency_ms": 1,
+                            "finish_reason": None,
+                            "compile_ok": True,
+                            "compile_errors": [],
+                            "transpiled_python": None,
+                            "tests_passed": 0,
+                            "tests_total": 6,
+                            "exec_outcome": outcome,
+                        }
+                    ],
+                )
+                with patch.object(
+                    benchmark,
+                    "SessionLocal",
+                    side_effect=lambda: sessionmaker(bind=self.engine)(),
+                ), patch(
+                    "zakbench.runners.run.run_single",
+                    return_value=result,
+                ):
+                    benchmark.execute_run_in_background(
+                        run.id,
+                        "array_sum",
+                        benchmark.Language.PYTHON,
+                        "def solve(nums): return 0",
+                    )
+
+                self.session.expire_all()
+                self.assertEqual(
+                    self.session.get(BenchmarkRun, run.id).status,
+                    expected_status,
+                )
+
+    def test_background_worker_marks_unexpected_failure_as_error(self):
+        run = benchmark.create_queued_run(
+            self.session,
+            self.user,
+            "array_sum",
+            benchmark.Language.PYTHON,
+        )
+        self.session.commit()
+
+        with patch.object(
+            benchmark,
+            "SessionLocal",
+            side_effect=lambda: sessionmaker(bind=self.engine)(),
+        ), \
+                patch(
+                    "zakbench.runners.run.run_single",
+                    side_effect=RuntimeError("runner unavailable"),
+                ), patch.object(benchmark.logger, "exception"):
+            benchmark.execute_run_in_background(
+                run.id,
+                "array_sum",
+                benchmark.Language.PYTHON,
+                "def solve(nums): return 0",
+            )
+
+        self.session.expire_all()
+        saved_run = self.session.get(BenchmarkRun, run.id)
+        self.assertEqual(saved_run.status, "error")
+        self.assertIsNotNone(saved_run.completed_at)
+        self.assertEqual(saved_run.attempts, [])
 
 
 if __name__ == "__main__":
