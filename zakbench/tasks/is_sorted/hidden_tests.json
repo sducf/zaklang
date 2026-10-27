@@ -1,0 +1,34 @@
+[
+  {
+    "inputs": [[1, 2, 3]],
+    "expected": true
+  },
+  {
+    "inputs": [[5]],
+    "expected": true
+  },
+  {
+    "inputs": [[3, 2]],
+    "expected": false
+  },
+  {
+    "inputs": [[1, 1, 2, 2]],
+    "expected": true
+  },
+  {
+    "inputs": [[-5, -3, -3, 0]],
+    "expected": true
+  },
+  {
+    "inputs": [[1, 2, 3, 5, 4]],
+    "expected": false
+  },
+  {
+    "inputs": [[2, 1, 2, 3]],
+    "expected": false
+  },
+  {
+    "inputs": [[]],
+    "expected": true
+  }
+]

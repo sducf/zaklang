@@ -1,0 +1,1 @@
+@solve(scores:{S:I},threshold:I)I{c:=0;~v:vals(scores){?v>=threshold{c+=1}}^c}

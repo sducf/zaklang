@@ -1,0 +1,18 @@
+{
+  "id": "count_above_threshold",
+  "title": "Count Above Threshold",
+  "category": "maps",
+  "prompt": "Given a map from names to integer scores and an integer threshold, return how many names have a score greater than or equal to the threshold.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "scores",
+      "type": "map<string, integer>"
+    },
+    {
+      "name": "threshold",
+      "type": "integer"
+    }
+  ],
+  "outputType": "integer"
+}

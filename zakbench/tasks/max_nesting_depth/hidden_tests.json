@@ -1,0 +1,34 @@
+[
+  {
+    "inputs": ["(1+(2*3))"],
+    "expected": 2
+  },
+  {
+    "inputs": ["abc"],
+    "expected": 0
+  },
+  {
+    "inputs": ["()()()"],
+    "expected": 1
+  },
+  {
+    "inputs": ["((()))"],
+    "expected": 3
+  },
+  {
+    "inputs": ["(a(b)(c(d)))"],
+    "expected": 3
+  },
+  {
+    "inputs": ["(()(()))x()"],
+    "expected": 3
+  },
+  {
+    "inputs": ["(x)"],
+    "expected": 1
+  },
+  {
+    "inputs": [""],
+    "expected": 0
+  }
+]
