@@ -408,6 +408,65 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertIsNotNone(saved_run.completed_at)
         self.assertEqual(saved_run.attempts, [])
 
+    def test_array_sum_authenticated_run_persists_terminal_result(self):
+        class BackgroundTasks:
+            def add_task(self, function, *args):
+                function(*args)
+
+        payload = benchmark_routes.RunCreateRequest(
+            task_id="array_sum",
+            language=benchmark.Language.PYTHON,
+            source="def solve(nums): return sum(nums)",
+        )
+        result = SimpleNamespace(
+            exec_outcome="pass",
+            attempts=[
+                {
+                    "number": 1,
+                    "prompt": None,
+                    "code": payload.source,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "latency_ms": 8,
+                    "finish_reason": None,
+                    "compile_ok": True,
+                    "compile_errors": [],
+                    "transpiled_python": None,
+                    "tests_passed": 6,
+                    "tests_total": 6,
+                    "exec_outcome": "pass",
+                }
+            ],
+        )
+
+        with patch.object(
+            benchmark,
+            "SessionLocal",
+            side_effect=lambda: sessionmaker(bind=self.engine)(),
+        ), patch(
+            "zakbench.runners.run.run_single",
+            return_value=result,
+        ):
+            response = benchmark_routes.create_run(
+                payload,
+                BackgroundTasks(),
+                self.user,
+                self.session,
+            )
+
+        self.session.expire_all()
+        persisted = benchmark.get_run_for_user(
+            self.session,
+            self.user,
+            response.id,
+        )
+        self.assertEqual(persisted.status, benchmark.RunStatus.PASSED)
+        self.assertEqual(persisted.task_id, "array_sum")
+        self.assertEqual(persisted.attempts_used, 1)
+        self.assertEqual(persisted.attempts[0].tests_passed, 6)
+        self.assertEqual(persisted.attempts[0].tests_total, 6)
+        self.assertEqual(persisted.attempts[0].total_tokens, 0)
+
 
 class BenchmarkHttpAuthTests(unittest.TestCase):
     def setUp(self):

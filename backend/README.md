@@ -28,9 +28,9 @@ FastAPI route modules live under `api/routes/`:
   current-user endpoints. Login and refresh return a short-lived access token
   and a longer-lived refresh token (`REFRESH_TOKEN_EXPIRE_DAYS`, default 7).
   Send the refresh token to `POST /auth/refresh` to get a new pair.
-- `api/controllers/` contains route-adjacent application behavior. The GPU
-  health controller is the first extracted implementation; auth controllers
-  will be added with the authentication service.
+- `api/controllers/` contains route-adjacent application behavior, including
+  benchmark task loading, compilation, run persistence, and user-scoped
+  queries.
 - `main.py` only creates the application, configures CORS, and registers
   routers. Database access and authentication services should be added behind
   the route layer rather than directly in `main.py`.
@@ -86,10 +86,37 @@ uvicorn main:app --reload
 
 Open the API documentation at `http://127.0.0.1:8000/docs`.
 
-## Benchmark API Contract
+## Benchmark API
 
-The benchmark routes are contract-only stubs and appear in FastAPI docs with
-their request and response models. Endpoint behavior is implemented separately.
+The benchmark API exposes public task metadata and compilation, plus
+authenticated run creation and user-scoped run history.
+
+### Public endpoints
+
+- `GET /tasks` lists every task from `zakbench/tasks/*/task.json`.
+- `GET /tasks/{id}` returns one public task definition.
+- `POST /compile` compiles and transpiles Zak, returning structured errors
+  with `ok: false` for invalid source.
+
+Task endpoints read only `task.json`; `hidden_tests.json` is never opened or
+returned by these endpoints.
+
+### Authenticated run endpoints
+
+- `POST /runs` creates a `queued` run and schedules the single-run worker with
+  FastAPI `BackgroundTasks`.
+- `GET /runs` returns only runs owned by the authenticated caller.
+- `GET /runs/{id}` returns the caller's aggregate run or `404` for another
+  user's run.
+
+All run endpoints require an access bearer token and return `401` when the
+request is unauthenticated. The configured model name is currently
+`Llama 3.1 8B Instruct`.
+
+The worker opens a separate database session, calls the existing ZakBench
+single-run function, persists each `Attempt` and `Evaluation`, and updates the
+run to `passed`, `failed`, `timeout`, or `error`. Generated code is not
+executed in the API process; evaluation delegates execution to the sandbox.
 
 `GET /runs/{id}` returns a run aggregate. Token counts and latency are totals
 across attempts; test counts belong to the individual attempt that produced
