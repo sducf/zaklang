@@ -65,6 +65,30 @@ class BenchmarkTaskControllerTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 404)
 
+    def test_compile_invalid_zak_returns_structured_errors(self):
+        response = benchmark.compile_controller("@solve(a:[I])I{^sum(a)+}")
+
+        self.assertFalse(response.ok)
+        self.assertIsNone(response.python)
+        self.assertGreaterEqual(len(response.errors), 1)
+        self.assertGreaterEqual(response.errors[0].line, 1)
+        self.assertGreaterEqual(response.errors[0].col, 1)
+        self.assertTrue(response.errors[0].code)
+        self.assertTrue(response.errors[0].message)
+
+    def test_compile_does_not_execute_generated_python(self):
+        source = "@solve(a:[I])I{^sum(a)}"
+        import sys
+
+        sys.path.insert(0, str(benchmark.REPOSITORY_ROOT))
+        from compiler import src
+
+        with patch.object(src, "transpile", return_value="raise RuntimeError"):
+            response = benchmark.compile_controller(source)
+
+        self.assertTrue(response.ok)
+        self.assertEqual(response.python, "raise RuntimeError")
+
     def test_task_routes_delegate_to_controllers(self):
         task = benchmark.get_task_controller("array_sum")
         with patch.object(

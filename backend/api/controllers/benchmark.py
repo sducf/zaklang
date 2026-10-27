@@ -3,15 +3,22 @@
 import json
 from pathlib import Path
 import re
+import sys
 from typing import Any
 
 from fastapi import HTTPException, status
 
-from api.schemas.benchmark import TASK_ID_PATTERN, TaskResponse
+from api.schemas.benchmark import (
+    TASK_ID_PATTERN,
+    CompileResponse,
+    CompilerError,
+    TaskResponse,
+)
 
 
 TASK_ID = re.compile(TASK_ID_PATTERN)
 TASKS_ROOT = Path(__file__).resolve().parents[3] / "zakbench" / "tasks"
+REPOSITORY_ROOT = TASKS_ROOT.parent.parent
 
 
 def _read_task(task_id: str, task_file: Path) -> TaskResponse:
@@ -90,3 +97,46 @@ def get_task_controller(task_id: str) -> TaskResponse:
         )
 
     return _read_task(task_id, task_file)
+
+
+def compile_controller(source: str) -> CompileResponse:
+    """Compile and transpile Zak source without executing generated Python."""
+    if str(REPOSITORY_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPOSITORY_ROOT))
+
+    from compiler.src import TranspileError, compile as compile_zak, transpile
+
+    result = compile_zak(source)
+    if not result.ok:
+        return CompileResponse(
+            ok=False,
+            errors=[_compiler_error(error) for error in result.errors],
+            python=None,
+        )
+
+    if result.ast is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Compiler returned a successful result without an AST",
+        )
+
+    try:
+        python_source = transpile(result.ast)
+    except TranspileError as exc:
+        return CompileResponse(
+            ok=False,
+            errors=[_compiler_error(error) for error in exc.errors],
+            python=None,
+        )
+
+    return CompileResponse(ok=True, errors=[], python=python_source)
+
+
+def _compiler_error(error: Any) -> CompilerError:
+    """Convert a compiler diagnostic to the public API shape."""
+    return CompilerError(
+        line=error.line,
+        col=error.col,
+        code=error.code,
+        message=error.message,
+    )

@@ -15,6 +15,7 @@ from api.schemas.benchmark import (
 )
 from api.controllers.auth import get_current_user_controller
 from api.controllers.benchmark import (
+    compile_controller,
     get_task_controller,
     list_tasks_controller,
 )
@@ -44,7 +45,7 @@ def get_task(
 
 @router.post("/compile", response_model=CompileResponse)
 def compile_source(payload: CompileRequest) -> CompileResponse:
-    _not_implemented()
+    return compile_controller(payload.source)
 
 
 @router.post(
