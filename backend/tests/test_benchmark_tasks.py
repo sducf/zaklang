@@ -9,11 +9,16 @@ import unittest
 from unittest.mock import patch
 
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker
 
 from api.controllers import benchmark
+from api.controllers.auth import get_current_user_controller
+from api.routes import auth as auth_routes
 from api.routes import benchmark as benchmark_routes
+from main import app
 from database.models import Attempt, Base, BenchmarkRun, Evaluation, User
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -402,6 +407,73 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual(saved_run.status, "error")
         self.assertIsNotNone(saved_run.completed_at)
         self.assertEqual(saved_run.attempts, [])
+
+
+class BenchmarkHttpAuthTests(unittest.TestCase):
+    def setUp(self):
+        self.engine = create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(self.engine)
+        self.session_factory = sessionmaker(bind=self.engine)
+        self.session = self.session_factory()
+        self.addCleanup(self.engine.dispose)
+        self.addCleanup(self.session.close)
+        self.user = User(email="http-user@example.com", password_hash="hash")
+        self.session.add(self.user)
+        self.session.commit()
+
+        def override_db():
+            db = self.session_factory()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        app.dependency_overrides[auth_routes.get_db] = override_db
+        app.dependency_overrides[benchmark_routes.get_db] = override_db
+        self.client = TestClient(app)
+        self.addCleanup(app.dependency_overrides.clear)
+
+    def test_runs_require_authentication(self):
+        for method, path in (
+            ("get", "/runs"),
+            ("get", "/runs/1"),
+            ("post", "/runs"),
+        ):
+            with self.subTest(method=method, path=path):
+                if method == "post":
+                    response = self.client.post(
+                        path,
+                        json={"task_id": "array_sum", "language": "python"},
+                    )
+                else:
+                    response = self.client.get(path)
+                self.assertEqual(response.status_code, 401)
+
+    def test_authenticated_detail_hides_another_users_run(self):
+        other_user = User(email="other-http@example.com", password_hash="hash")
+        self.session.add(other_user)
+        self.session.flush()
+        run = benchmark.create_queued_run(
+            self.session,
+            other_user,
+            "array_sum",
+            benchmark.Language.PYTHON,
+        )
+        self.session.commit()
+
+        app.dependency_overrides[get_current_user_controller] = (
+            lambda: self.user
+        )
+        response = self.client.get(
+            f"/runs/{run.id}",
+            headers={"Authorization": "Bearer test-token"},
+        )
+
+        self.assertEqual(response.status_code, 404)
 
 
 if __name__ == "__main__":
