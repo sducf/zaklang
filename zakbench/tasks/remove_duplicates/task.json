@@ -1,0 +1,14 @@
+{
+  "id": "remove_duplicates",
+  "title": "Remove Duplicates",
+  "category": "arrays",
+  "prompt": "Given an array of integers, return a new array that keeps only the first occurrence of each value, in the order those first occurrences appear.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "nums",
+      "type": "integer[]"
+    }
+  ],
+  "outputType": "integer[]"
+}

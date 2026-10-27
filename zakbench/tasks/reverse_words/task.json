@@ -1,0 +1,14 @@
+{
+  "id": "reverse_words",
+  "title": "Reverse Words",
+  "category": "strings",
+  "prompt": "Given a sentence whose words are separated by single spaces, with no spaces at the start or end, return the same words in reverse order, separated by single spaces. An empty string has no words, so return an empty string.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "outputType": "string"
+}

@@ -1,0 +1,1 @@
+@solve(nums:[I])[I]{r:[I]=[];t:=0;~n:nums{t+=n;r<<t}^r}

@@ -1,0 +1,1 @@
+@solve(text:S)S{^jn(rev(spl(text," "))," ")}

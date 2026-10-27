@@ -1,0 +1,14 @@
+{
+  "id": "count_vowels",
+  "title": "Count Vowels",
+  "category": "strings",
+  "prompt": "Given a string, return how many of its characters are vowels. The vowels are a, e, i, o, and u, in either lowercase or uppercase. The letter y is not a vowel.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "outputType": "integer"
+}

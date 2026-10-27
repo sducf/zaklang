@@ -1,0 +1,14 @@
+{
+  "id": "count_evens",
+  "title": "Count Evens",
+  "category": "arrays",
+  "prompt": "Given an array of integers, return how many of them are even. Zero and negative even numbers count as even.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "nums",
+      "type": "integer[]"
+    }
+  ],
+  "outputType": "integer"
+}
