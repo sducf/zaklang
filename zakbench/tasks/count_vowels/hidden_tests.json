@@ -1,0 +1,34 @@
+[
+  {
+    "inputs": ["hello"],
+    "expected": 2
+  },
+  {
+    "inputs": ["AEIOU"],
+    "expected": 5
+  },
+  {
+    "inputs": ["rhythm"],
+    "expected": 0
+  },
+  {
+    "inputs": ["Programming Is Fun"],
+    "expected": 5
+  },
+  {
+    "inputs": ["y"],
+    "expected": 0
+  },
+  {
+    "inputs": ["a1e2i3!"],
+    "expected": 3
+  },
+  {
+    "inputs": ["Queue"],
+    "expected": 4
+  },
+  {
+    "inputs": [""],
+    "expected": 0
+  }
+]

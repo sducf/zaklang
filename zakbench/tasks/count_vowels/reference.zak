@@ -1,0 +1,1 @@
+@solve(text:S)I{c:=0;~ch:lo(text){?ch@"aeiou"{c+=1}}^c}

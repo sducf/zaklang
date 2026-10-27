@@ -1,0 +1,1 @@
+@solve(nums:[I])[I]{r:[I]=[];~n:nums{?!n@r{r<<n}}^r}
