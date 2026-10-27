@@ -43,3 +43,7 @@ dist-ssr
 
 # Local agent instructions
 AGENTS.md
+
+# Generated ZakBench run results
+zakbench/results/*
+!zakbench/results/.gitkeep
