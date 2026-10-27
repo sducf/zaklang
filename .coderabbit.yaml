@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit reviews pull requests automatically. Config reference: https://docs.coderabbit.ai/reference/configuration
+language: en-US
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+  path_filters:
+    - "!**/__pycache__/**"
+    - "!**/*.pdf"
+    - "!zakbench/results/**"
+  path_instructions:
+    - path: "compiler/**"
+      instructions: |
+        ZakLang compiler (Lark LALR parser -> AST -> semantic checks -> Python transpiler). Zak is the code an LLM writes in ZakBench. Compiler errors go back to the model in the repair loop, and the emitted Python is executed and graded, so a silent change in behavior can invalidate benchmark results.
+        - `compile()` must never raise on bad source. It returns `CompileResult{ok, ast, errors}`, and every error has a 1-based `line`/`col`, a stable `code` from the README Diagnostics table, and a short message. Flag any new code that is not documented, and any message that is long or written in a friendly style.
+        - `ok` must mean an AST and no errors; failure must mean `ast=None` and at least one error. `KeyboardInterrupt`/`SystemExit` must still propagate.
+        - `src/grammar.txt` is the only source of truth for syntax. Keep the parser as LALR (no Earley). Flag new keywords or sigils, or a second way to write an existing construct: the v0.1 keyword/sigil set is frozen.
+        - Types stay strict: I/R/B never mix implicitly, conditions are B, and `I/I` floors. Flag any implicit coercion.
+        - Transpiler output must be deterministic and byte-identical for the same AST. It must run on CPython 3.12 with no third-party imports, and emitted names keep the `_ZAK_` prefix.
+        - Emitter changes must keep left-to-right, single evaluation and short-circuiting. They must also keep `srt`/`rev`/`keys`/`vals` returning arrays.
+        - Never execute Zak or the emitted Python in compiler code. Tests do execution in time-limited subprocesses or the Docker sandbox.
+        - Changes need tests: a positive case plus one invalid program asserting `code`/`line`/`col`, an updated snapshot when emitted code changes, and a conformance `.zak`+`.expected` pair for new constructs. Conformance compares stdout exactly and is never skipped.
+        - Flag work beyond Zak Core: classes, closures, I/O, modules, nested functions, or comprehension support without its own ticket.
+        - Pyright must pass.
+    - path: "zakbench/**"
+      instructions: |
+        ZakBench runs matched Zak-vs-Python experiments and reports tokens-to-correctness (PRD F5). Results only count if the comparison is fair, deterministic, and reproducible from the stored run definition, so treat any drift in these areas as a bug.
+        - Fairness: both languages must get the same task fields, model, seed, temperature 0, max_tokens, K, and hidden tests. Zak may only add the spec and examples. Python gets no extra hints. Repair wording stays the same for both languages.
+        - Changing prompts/*.txt or the repair/prompt wording requires bumping PROMPT_VERSION in runners/prompt.py.
+        - Hidden tests: prompts are built from task.json only. Hidden-test data may leave the evaluator only as the bounded failure summary (500 chars max, first failing test only). Flag any logging or printing of tests or prompts.
+        - Generated code runs only in the Docker sandbox through evaluate(). Flag any exec/eval/import of candidate code in the calling process.
+        - Token counts come from llama-server usage data. Never estimate them or default them to 0. Totals cover every attempt, and repair_tokens = total_tokens - first_attempt_tokens.
+        - Keep cache_prompt False and temperature 0 so identical runs reproduce.
+        - summary.py stays pure and order-independent. Paired token stats use only tasks both languages solved. Ratios are rounded to 4 places, or null when there is nothing to divide by. Error runs count as not passed.
+        - Tasks: task.json has all 7 SD-12 fields, an id that matches its folder, and no Zak/Python syntax or test cases. hidden_tests.json has 5-12 deterministic cases with input arity matching the task. reference.py and reference.zak must pass check_references.py.
+        - Behavior changes need unittest coverage in zakbench/tests with the model server and Docker faked. No real GPU or Docker in tests.
+    - path: "backend/**"
+      instructions: |
+        ZakLang API (FastAPI + Pydantic + SQLAlchemy + Alembic). It uses PostgreSQL on Railway and SQLite locally. It stores benchmark runs for the tokens-to-correctness study, so if stored results are wrong or can't be reproduced, the research result is wrong.
+        - Untrusted code: never call exec/eval/subprocess on model output or user `source` inside the API process. All execution goes through the hardened Docker sandbox.
+        - Never put hidden tests (files, contents or paths) in any response, log, error detail or export.
+        - Token counts must come from llama-server's tokenizer, never estimated. Run totals are sums over attempts. Test counts stay per attempt and are not summed at run level.
+        - Persist the full prompt and raw completion for every attempt. Keep timeout, OOM and crash as distinct outcomes. Run creation should record the reproducibility fields (model, seed, temperature, spec/prompt version).
+        - Auth: hash passwords with argon2 (pwdlib). Keep the access/refresh `type` check. Launch endpoints need a role check (403) and the per-user quota. Flag new users defaulting to `member`, since the PRD's base role is `viewer`.
+        - Playground contract: keep errors as FastAPI `{detail}`, keep the `TokenResponse` and `UserResponse` shapes, and keep the meaning of 401 (it triggers a refresh). CompilerError must stay `{line, col, code, message}`. Breaking changes need a matching change in `playground/src/lib`.
+        - Migrations: every model change needs an Alembic revision that is reviewed and has a working `downgrade`. It must run on both SQLite and Postgres (use `batch_alter_table`). Flag NOT NULL columns added without a default or backfill. Update `schema.dbml` and the README too.
+        - Secrets only come from env vars. CORS stays limited to `FRONTEND_URL`. `main.py` only wires up the app. Logic goes in `api/controllers/`.
+        - Tests: there are no backend tests yet. Ask for pytest + TestClient coverage of auth, 403s, quotas and every new endpoint.
+        - Per AGENTS.md, flag new services, queues or dependencies unless the ticket asks for them.
+    - path: ".github/**"
+      instructions: |
+        ZakLang CI. The PR naming check makes every branch and commit map to a Jira SD issue. The PRD's planned CI (lint, conformance suite, transpiler snapshots, task reference checks) should follow the same conventions.
+        - Pin each action to a full commit SHA with a version comment (`@<sha> # vX.Y.Z`). Flag tags or branch refs.
+        - Pass untrusted PR data (head.ref, SHAs, titles) through `env:` and use it as a quoted `"$VAR"`. Never put `${{ }}` inside `run:`.
+        - Keep least-privilege `permissions:` (currently `contents: read`). Any broader scope needs a reason. Keep `persist-credentials: false` on checkout.
+        - Every job sets `timeout-minutes`.
+        - Keep `fetch-depth: 0` and the default merge ref so `base..head` covers every PR commit.
+        - Keep the `python3 -m unittest discover -s .github/scripts` step before the check. New scripts get a `test_*.py` there.
+        - The naming rule must hold: the branch and every non-merge commit subject start with uppercase `SD-` plus ASCII digits (`[0-9]`, not `\d`), and the commit number matches the branch number. Flag any regex change that loosens or tightens this without matching tests.
+        - All output goes through `annotate()`, which escapes `%`, `\r` and `\n`. Exit codes stay 0 (pass), 1 (violation or unreadable commits), 2 (usage).
+        - `sd.py` must import the rule from `check_pr_naming` (no copied regex), and `sd.py pr` must run the same check before pushing.
+        - A behavior change updates `test_check_pr_naming.py`: branch/subject tables, wrong issue number, merge skipped, fork PR, missing commit, escaping.
+        - Scripts use only the standard library. No new dependencies unless the ticket requires them.
+chat:
+  auto_reply: true
