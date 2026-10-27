@@ -15,16 +15,10 @@ pub(crate) fn with_stack<T>(operation: impl FnOnce() -> T) -> T {
     stacker::maybe_grow(2 * 1024 * 1024, 16 * 1024 * 1024, operation)
 }
 
-pub fn compile(source: &str) -> Result<CheckedProgram, Vec<CompilerError>> {
-    with_stack(|| {
-        let syntax = parser::parse(source).map_err(|error| vec![error])?;
-        semantic::check(syntax)
-    })
+pub fn zak_check(source: &str) -> Result<CheckedProgram, Vec<CompilerError>> {
+    with_stack(|| parser::parse(source).map_err(|error| vec![error])?.check())
 }
 
-pub fn compile_to_python(source: &str) -> Result<TranspiledProgram, Vec<CompilerError>> {
-    with_stack(|| {
-        let checked = compile(source)?;
-        transpiler::transpile(&checked).map_err(|error| vec![error])
-    })
+pub fn zak_transpile(source: &str) -> Result<TranspiledProgram, Vec<CompilerError>> {
+    with_stack(|| zak_check(source)?.transpile().map_err(|error| vec![error]))
 }

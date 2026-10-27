@@ -1,9 +1,9 @@
 use zakc::ast::{Span, Type};
-use zakc::{ErrorCode, ErrorContext, compile, compile_to_python};
+use zakc::{ErrorCode, ErrorContext, zak_check, zak_transpile};
 
 #[test]
 fn errors_distinguish_zak_source_from_rust_call_site() {
-    let errors = compile("x:=1;\nout(unknown)").unwrap_err();
+    let errors = zak_check("x:=1;\nout(unknown)").unwrap_err();
     assert_eq!(errors[0].code, ErrorCode::UndefinedName);
     let span = errors[0].span.unwrap();
     assert_eq!((span.line, span.col), (2, 5));
@@ -29,7 +29,7 @@ fn context_trait_preserves_origin_and_tracks_the_callers_exact_line() {
 
 #[test]
 fn typed_context_and_metadata_are_stable_after_moves() {
-    let program = compile("a:[[I]]=[[]];i:=7/2;r:=7.0/2.0").unwrap();
+    let program = zak_check("a:[[I]]=[[]];i:=7/2;r:=7.0/2.0").unwrap();
     let moved = Box::new(program);
     assert!(
         moved
@@ -48,7 +48,7 @@ fn typed_context_and_metadata_are_stable_after_moves() {
 
 #[test]
 fn independent_failures_are_accumulated_with_exact_columns() {
-    let errors = compile("out(x);out(y)").unwrap_err();
+    let errors = zak_check("out(x);out(y)").unwrap_err();
     assert_eq!(errors.len(), 2);
     assert_eq!(
         errors
@@ -61,7 +61,7 @@ fn independent_failures_are_accumulated_with_exact_columns() {
 
 #[test]
 fn integer_and_real_division_emit_different_python_operators() {
-    let generated = compile_to_python("i:=7/2;r:=7.0/2.0;out(i);out(r)").unwrap();
+    let generated = zak_transpile("i:=7/2;r:=7.0/2.0;out(i);out(r)").unwrap();
     assert!(generated.source.contains("//"));
     assert!(generated.source.contains(" / "));
     assert!(!generated.python_ast.is_empty());
@@ -70,16 +70,16 @@ fn integer_and_real_division_emit_different_python_operators() {
 
 #[test]
 fn syntax_and_end_of_file_have_real_source_locations() {
-    let errors = compile("x:=1;\n?T{out(x)").unwrap_err();
+    let errors = zak_check("x:=1;\n?T{out(x)").unwrap_err();
     assert_eq!(errors[0].code, ErrorCode::SyntaxError);
     assert_eq!(errors[0].span.unwrap().line, 2);
 }
 
 #[test]
 fn unsupported_syntax_fails_explicitly_and_compilation_never_executes() {
-    let errors = compile("a:=[x~x:[1]]").unwrap_err();
+    let errors = zak_check("a:=[x~x:[1]]").unwrap_err();
     assert_eq!(errors[0].code, ErrorCode::UnsupportedFeature);
-    assert!(compile_to_python("~T{}").is_ok());
+    assert!(zak_transpile("~T{}").is_ok());
 }
 
 #[test]
@@ -92,7 +92,7 @@ fn all_existing_programs_and_references_compile_to_real_python_ast() {
     for entry in std::fs::read_dir(corpus).unwrap() {
         let path = entry.unwrap().path();
         if path.extension().is_some_and(|ext| ext == "zak") {
-            compile_to_python(&std::fs::read_to_string(&path).unwrap())
+            zak_transpile(&std::fs::read_to_string(&path).unwrap())
                 .unwrap_or_else(|errors| panic!("{}: {errors:?}", path.display()));
             count += 1;
         }
@@ -102,7 +102,7 @@ fn all_existing_programs_and_references_compile_to_real_python_ast() {
     for entry in std::fs::read_dir(root.join("zakbench/tasks")).unwrap() {
         let path = entry.unwrap().path().join("reference.zak");
         if path.is_file() {
-            compile_to_python(&std::fs::read_to_string(&path).unwrap())
+            zak_transpile(&std::fs::read_to_string(&path).unwrap())
                 .unwrap_or_else(|errors| panic!("{}: {errors:?}", path.display()));
             references += 1;
         }
@@ -112,7 +112,7 @@ fn all_existing_programs_and_references_compile_to_real_python_ast() {
 
 #[test]
 fn unicode_columns_are_character_offsets_while_ranges_are_byte_offsets() {
-    let errors = compile("out(\"é\");out(unknown)").unwrap_err();
+    let errors = zak_check("out(\"é\");out(unknown)").unwrap_err();
     let span = errors[0].span.unwrap();
     assert_eq!((span.line, span.col, span.start), (1, 14, 14));
     assert_eq!(span.end - span.start, "unknown".len());
@@ -120,7 +120,7 @@ fn unicode_columns_are_character_offsets_while_ranges_are_byte_offsets() {
 
 #[test]
 fn outer_source_context_never_replaces_the_original_location() {
-    let error = compile("\nout(missing)").unwrap_err().remove(0);
+    let error = zak_check("\nout(missing)").unwrap_err().remove(0);
     let wrapped = Err::<(), _>(error).at(Span::point(99, 99)).unwrap_err();
     assert_eq!(
         (wrapped.span.unwrap().line, wrapped.span.unwrap().col),
@@ -169,17 +169,17 @@ fn complexity_limits_fail_without_stack_overflow() {
         format!("out({})", vec!["1"; 200].join("+")),
     ] {
         assert_eq!(
-            compile(&source).unwrap_err()[0].code,
+            zak_check(&source).unwrap_err()[0].code,
             ErrorCode::ComplexityLimit
         );
     }
-    assert!(compile(&format!("out({}1{})", "(".repeat(20), ")".repeat(20))).is_ok());
+    assert!(zak_check(&format!("out({}1{})", "(".repeat(20), ")".repeat(20))).is_ok());
 }
 
 #[test]
 fn integers_are_not_limited_to_rust_machine_word_size() {
     let source = "out(12345678901234567890123456789012345678901234567890);out(0007)";
-    let generated = compile_to_python(source).unwrap();
+    let generated = zak_transpile(source).unwrap();
     assert!(
         generated
             .source
@@ -190,7 +190,7 @@ fn integers_are_not_limited_to_rust_machine_word_size() {
 
 #[test]
 fn serde_literal_errors_are_located_at_the_zak_literal() {
-    let errors = compile("out(1);\nout(\"\\q\")").unwrap_err();
+    let errors = zak_check("out(1);\nout(\"\\q\")").unwrap_err();
     assert_eq!(errors[0].code, ErrorCode::InvalidLiteral);
     let span = errors[0].span.unwrap();
     assert_eq!((span.line, span.col), (2, 5));
@@ -200,9 +200,9 @@ fn serde_literal_errors_are_located_at_the_zak_literal() {
 #[test]
 fn output_is_deterministic_even_though_analysis_uses_hash_maps() {
     let source = "x:=1;@f(n:I)I{x+=n;^x}out(f(2))";
-    let first = compile_to_python(source).unwrap();
-    compile_to_python("@unrelated()I{^0}").unwrap();
-    let second = compile_to_python(source).unwrap();
+    let first = zak_transpile(source).unwrap();
+    zak_transpile("@unrelated()I{^0}").unwrap();
+    let second = zak_transpile(source).unwrap();
     assert_eq!(first.source, second.source);
     assert!(first.source.contains("global _ZAK_v0"));
     assert_eq!(first.source_map.len(), second.source_map.len());
@@ -213,14 +213,14 @@ fn staged_api_rejects_combined_asts_with_colliding_node_ids() {
     let mut left = zakc::parser::parse("x:=7;out(x/2)").unwrap();
     let right = zakc::parser::parse("y:=2.0;out(y/2.0)").unwrap();
     left.statements.extend(right.statements);
-    let errors = zakc::semantic::check(left).unwrap_err();
+    let errors = left.check().unwrap_err();
     assert_eq!(errors[0].code.to_string(), "INVALID_AST");
 }
 
 #[test]
 fn syntax_errors_preserve_byte_offsets_at_eof() {
     let source = "out(1);\nout(";
-    let errors = compile(source).unwrap_err();
+    let errors = zak_check(source).unwrap_err();
     let span = errors[0].span.unwrap();
     assert_eq!((span.line, span.col), (2, 5));
     assert_eq!((span.start, span.end), (source.len(), source.len()));
@@ -276,10 +276,10 @@ fn nested_brackets_parse_in_linear_time() {
         "[a".repeat(depth),
         "]".repeat(depth)
     );
-    assert!(compile(&arrays).is_ok());
-    assert!(compile(&indexes).is_ok());
+    assert!(zak_check(&arrays).is_ok());
+    assert!(zak_check(&indexes).is_ok());
     assert!(started.elapsed() < std::time::Duration::from_secs(2));
-    let python = compile_to_python("a:[I]=[1,2,3];out(a[1:]);out(a[:2]);out(a[:]);out(a[0])")
+    let python = zak_transpile("a:[I]=[1,2,3];out(a[1:]);out(a[:2]);out(a[:]);out(a[0])")
         .unwrap()
         .source;
     assert!(python.contains("[1:]") && python.contains("[:2]") && python.contains("[:]"));

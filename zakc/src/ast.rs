@@ -14,12 +14,15 @@ pub struct Span {
 impl Span {
     pub fn at_offset(source: &str, offset: usize) -> Self {
         let mut offset = offset.min(source.len());
+
         while !source.is_char_boundary(offset) {
             offset -= 1;
         }
+
         let prefix = &source[..offset];
         let line = prefix.bytes().filter(|&ch| ch == b'\n').count() + 1;
         let col = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+
         Self {
             start: offset,
             end: offset,
@@ -29,6 +32,7 @@ impl Span {
             end_col: col,
         }
     }
+
     pub fn point(line: usize, col: usize) -> Self {
         Self {
             start: 0,
@@ -39,6 +43,7 @@ impl Span {
             end_col: col,
         }
     }
+
     pub fn through(self, end: Self) -> Self {
         Self {
             end: end.end,
@@ -51,12 +56,14 @@ impl Span {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
 #[serde(transparent)]
+#[repr(transparent)]
 pub struct NodeId(pub u32);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, derive_more::Display)]
 pub enum Type {
     #[display("I")]
     Int,
+    /// Real is a float type of any size [16, 32, 64, 128]
     #[display("R")]
     Real,
     #[display("B")]
@@ -72,15 +79,23 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn array(element: Type) -> Self {
+    /// Array types display as [T] for example
+    /// We have to use Box<T> (Heap alloc) because it is a
+    /// recursive type assignemnt
+    pub fn array(element: Self) -> Self {
         Self::Array(Box::new(element))
     }
+
     pub fn map(key: Type, value: Type) -> Self {
         Self::Map(Box::new(key), Box::new(value))
     }
+
     pub fn numeric(&self) -> bool {
         matches!(self, Self::Int | Self::Real)
     }
+
+    /// Checks if this type is a primitive (strings are considered primitive)
+    /// in our language
     pub fn primitive(&self) -> bool {
         matches!(self, Self::Int | Self::Real | Self::Bool | Self::Str)
     }
@@ -139,6 +154,7 @@ pub enum Literal {
     Bool(bool),
     Str(String),
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Expr {
     pub id: NodeId,
@@ -147,6 +163,7 @@ pub struct Expr {
     #[serde(skip)]
     pub(crate) depth: usize,
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub enum ExprKind {
     Literal(Literal),
@@ -185,17 +202,20 @@ pub struct Iteration {
     pub start: Expr,
     pub stop: Option<Expr>,
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub struct BindingName {
     pub id: NodeId,
     pub name: String,
     pub span: Span,
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Parameter {
     pub binding: BindingName,
     pub ty: Type,
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Function {
     pub name: String,
@@ -203,12 +223,14 @@ pub struct Function {
     pub return_type: Type,
     pub body: Vec<Stmt>,
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Stmt {
     pub id: NodeId,
     pub span: Span,
     pub kind: StmtKind,
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub enum StmtKind {
     Declare {
@@ -245,6 +267,7 @@ pub enum StmtKind {
         body: Vec<Stmt>,
     },
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Program {
     pub statements: Vec<Stmt>,
