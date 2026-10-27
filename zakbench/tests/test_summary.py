@@ -94,7 +94,8 @@ class SummarizeTest(unittest.TestCase):
 
     def test_mixed_run_definitions_are_rejected(self):
         other_seed = {**RUNS[1], 'seed': 1}
-        with self.assertRaisesRegex(ValueError, 't1 (zak|python): seed is'):
+        # Runs are sorted by language, so the Python run sets the expected values.
+        with self.assertRaisesRegex(ValueError, r'^t1 zak: seed is 0, but other runs have 1$'):
             summarize([RUNS[0], other_seed])
 
     def test_incomplete_or_duplicate_pairs_are_rejected(self):
@@ -102,7 +103,7 @@ class SummarizeTest(unittest.TestCase):
             summarize(RUNS[:1])
         with self.assertRaisesRegex(ValueError, "t1: unexpected or duplicate 'zak' run"):
             summarize([RUNS[0], RUNS[0], RUNS[1]])
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, '^there are no runs to summarize$'):
             summarize([])
 
 

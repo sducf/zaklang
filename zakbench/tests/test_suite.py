@@ -53,13 +53,19 @@ class RunSuiteTest(unittest.TestCase):
 
         with open(result.path / 'runs.csv', newline='', encoding='utf-8') as file:
             rows = list(csv.DictReader(file))
-        self.assertEqual(len(rows), 4)
         self.assertEqual(tuple(rows[0]), suite.CSV_COLUMNS)
-        first = rows[0]
-        self.assertEqual((first['task_id'], first['language'], first['category']), ('array_sum', 'python', 'arrays'))
-        self.assertEqual((first['exec_outcome'], first['passed'], first['first_attempt_passed']),
-                         ('pass', 'True', 'True'))
-        self.assertEqual((first['attempts_used'], first['total_tokens']), ('1', '120'))
+        # Every run passes its first attempt with the faked 100 prompt + 20 completion tokens.
+        self.assertEqual([(row['task_id'], row['language'], row['category'], row['exec_outcome'], row['passed'],
+                           row['first_attempt_passed'], row['attempts_used'], row['total_tokens'])
+                          for row in rows], [
+            ('array_sum', 'python', 'arrays', 'pass', 'True', 'True', '1', '120'),
+            ('array_sum', 'zak', 'arrays', 'pass', 'True', 'True', '1', '120'),
+            ('palindrome', 'python', 'strings', 'pass', 'True', 'True', '1', '120'),
+            ('palindrome', 'zak', 'strings', 'pass', 'True', 'True', '1', '120'),
+        ])
+        for row in rows:
+            self.assertEqual(row['pair_id'], f"{result.suite_run_id}:{row['task_id']}")
+            self.assertEqual((row['model_id'], row['seed'], row['max_attempts']), ('test-model', '0', '3'))
 
     def test_crashed_run_is_recorded_as_error_and_the_suite_continues(self):
         result = self.run_suite([InferenceError('could not reach llama-server'), reply(GOOD_PYTHON),
@@ -72,10 +78,11 @@ class RunSuiteTest(unittest.TestCase):
         self.assertEqual(result.summary['errors'][0]['task_id'], 'array_sum')
 
     def test_unknown_suite_or_task_is_rejected(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, '^unknown suite: held_out$'):
             suite.run_suite('held_out', 'test-model', 0, '1', '0.1', results_dir=self.tmp.name)
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, '^nope is not in the dev suite$'):
             suite.run_suite('dev', 'test-model', 0, '1', '0.1', task_ids=['nope'], results_dir=self.tmp.name)
+        self.assertEqual(list(Path(self.tmp.name).iterdir()), [])
 
 
 class SuiteCliTest(unittest.TestCase):
@@ -91,8 +98,17 @@ class SuiteCliTest(unittest.TestCase):
                         results_dir=tmp)
             [folder] = Path(tmp).iterdir()
             tasks = suite.suite_tasks('dev')
-            self.assertEqual(len(list(folder.glob('*-zak.json'))), len(tasks))
-            self.assertEqual(len(list(folder.glob('*-python.json'))), len(tasks))
+            self.assertEqual(sorted(path.name for path in folder.iterdir()), sorted(
+                [f'{task_id}-{language}.json' for task_id in tasks for language in ('zak', 'python')]
+                + ['runs.csv', 'summary.json']))
+            for task_id in tasks:
+                zak, python = (json.loads((folder / f'{task_id}-{language}.json').read_text())
+                               for language in ('zak', 'python'))
+                self.assertEqual(zak['pair_id'], f'{folder.name}:{task_id}', task_id)
+                self.assertEqual(python['pair_id'], zak['pair_id'], task_id)
+                self.assertEqual({field: zak[field] for field in DEFINITION},
+                                 {field: python[field] for field in DEFINITION}, task_id)
+                self.assertEqual((zak['language'], python['language']), ('zak', 'python'), task_id)
             before = {name: (folder / name).read_bytes() for name in ('summary.json', 'runs.csv')}
             for name in before:
                 (folder / name).unlink()
