@@ -20,6 +20,39 @@ It prints the outcome and writes the full result as JSON to `zakbench/results/`.
 The defaults are `--model llama-3.1-8b` (a label recorded in the result),
 `--seed 0`, `--spec-version 0.1`, `--prompt-version 1`, and `--max-attempts 3`.
 
+## Running a suite in both languages
+
+```sh
+python3 -m zakbench run --suite dev --lang both --model <id> --seed 0
+python3 -m zakbench summarize zakbench/results/<suite_run_id>/
+```
+
+`run --suite` runs every task in the dev suite once in Zak and once in Python,
+with the same model, seed, temperature, attempt limit, spec version, and
+prompt version. It writes to `zakbench/results/<suite_run_id>/`:
+
+- `<task_id>-<language>.json`: one `RunResult` per run, plus `suite`,
+  `suite_run_id`, `category`, and a `pair_id` that the two runs of a task share.
+- `summary.json`: the aggregate metrics from `evaluation/summary.py`.
+- `runs.csv`: one row per run with the run definition, outcome, attempts, and
+  token columns.
+
+Each run file is written when its run ends, so a stopped suite keeps the runs
+that finished. A run that crashes the harness, for example when the model
+server is down, is stored as an `error` run, and the suite continues.
+
+`summarize` reads the run files in a folder and writes `summary.json` and
+`runs.csv` again. The output depends only on the run files, so it is the same
+byte for byte.
+
+## suite.py
+
+`run_suite(suite, model_id, seed, prompt_version, spec_version,
+max_attempts=3, task_ids=None)` runs the suite and returns a `SuiteResult`
+with the `suite_run_id`, the folder, the run records, and the summary. Pass
+`task_ids` to run only some tasks. The dev suite is every folder in
+`zakbench/tasks/` that has a `task.json`.
+
 ## run.py
 
 `run_single(task_id, language, model_id, spec_version, prompt_version, seed,
