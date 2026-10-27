@@ -1,0 +1,18 @@
+{
+  "id": "rotate_array",
+  "title": "Rotate Array",
+  "category": "arrays",
+  "prompt": "Given an array of integers and a non-negative integer k, return a new array with the elements rotated k positions to the right. Each rotation moves the last element to the front. The number k may be larger than the length of the array.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "nums",
+      "type": "integer[]"
+    },
+    {
+      "name": "k",
+      "type": "integer"
+    }
+  ],
+  "outputType": "integer[]"
+}

@@ -1,0 +1,1 @@
+@solve(grid:[[I]])[[I]]{r:[[I]]=[];?#grid==0{^r}~j:0..#grid[0]{c:[I]=[];~row:grid{c<<row[j]}r<<c}^r}

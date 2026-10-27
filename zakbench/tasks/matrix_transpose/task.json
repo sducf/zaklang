@@ -1,0 +1,14 @@
+{
+  "id": "matrix_transpose",
+  "title": "Matrix Transpose",
+  "category": "arrays",
+  "prompt": "Given a grid of integers as an array of rows, where every row has the same length of at least 1, return its transpose. Row r of the result is column r of the input, read from top to bottom. An empty grid has an empty transpose.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "grid",
+      "type": "integer[][]"
+    }
+  ],
+  "outputType": "integer[][]"
+}

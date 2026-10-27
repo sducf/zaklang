@@ -1,0 +1,38 @@
+[
+  {
+    "inputs": ["abba", "dog cat cat dog"],
+    "expected": true
+  },
+  {
+    "inputs": ["abba", "dog cat cat fish"],
+    "expected": false
+  },
+  {
+    "inputs": ["aaaa", "dog cat cat dog"],
+    "expected": false
+  },
+  {
+    "inputs": ["abba", "dog dog dog dog"],
+    "expected": false
+  },
+  {
+    "inputs": ["a", ""],
+    "expected": false
+  },
+  {
+    "inputs": ["abc", "x y z"],
+    "expected": true
+  },
+  {
+    "inputs": ["ab", "x y z"],
+    "expected": false
+  },
+  {
+    "inputs": ["aba", "x y x"],
+    "expected": true
+  },
+  {
+    "inputs": ["", ""],
+    "expected": true
+  }
+]
