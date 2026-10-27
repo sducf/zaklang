@@ -1,0 +1,8 @@
+{
+  "source_cases": 107,
+  "corpus_programs": 15,
+  "references": 10,
+  "failures": [],
+  "hidden_cases_passed": 69,
+  "runtime_examples_passed": 22
+}

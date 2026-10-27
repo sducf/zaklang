@@ -44,7 +44,15 @@ def test_corpus_covers_sd1_constructs(parser):
     for path in CORPUS.glob("*.zak"):
         tree = parser.parse(path.read_text(encoding="utf-8"))
         rules.update(str(node.data) for node in tree.iter_subtrees())
-    assert {"decl", "assign", "binop", "compare", "if_", "while_", "for_", "fn", "ret", "arr"} <= rules
+    # Pin all construct families represented by the 15-program coverage table.
+    # Comprehensions are outside the statically supported SD1 subset.
+    assert {
+        "decl", "assign", "binop", "neg", "float_lit", "compare",
+        "true", "false", "and_op", "or_op", "not_op", "if_",
+        "while_", "for_", "fn", "param", "ret", "call", "brk", "cont",
+        "arr", "arr_t", "push", "index", "length", "str_lit", "slice",
+        "map", "map_t", "member",
+    } <= rules
 
 
 @pytest.mark.parametrize("task_id", TASK_IDS)

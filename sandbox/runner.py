@@ -25,6 +25,19 @@ DEFAULT_TASKS = (
 TASK_ID = re.compile(r"[a-z0-9_]+\Z")
 
 MAX_SOURCE_BYTES = 20_000
+MAX_OUTPUT_BYTES = 65_536
+
+
+@dataclass
+class ProgramResult:
+    """A standalone execution; 'pass' means exit zero, not a stdout comparison."""
+
+    outcome: str
+    stdout: bytes = b""
+    stderr: bytes = b""
+    exit_code: int | None = None
+    execution_ms: float = 0.0
+    detail: str | None = None
 
 
 @dataclass
@@ -42,17 +55,16 @@ class SandboxResult:
     first_failure_actual: str | None = None
 
 
-def _docker(*args: str, timeout: float = 20):
+def _docker(*args: str, timeout: float = 20, binary: bool = False):
     """Run a trusted Docker CLI command."""
 
     try:
         result = subprocess.run(
             ["docker", *args],
             capture_output=True,
-            text=True,
+            text=not binary,
             timeout=timeout,
-            encoding="utf-8",
-            errors="replace",
+            **({} if binary else {"encoding": "utf-8", "errors": "replace"}),
         )
 
     except FileNotFoundError as exc:
@@ -62,9 +74,12 @@ def _docker(*args: str, timeout: float = 20):
 
     if result.returncode != 0:
         # Diagnostics are for the trusted worker, never the public UI. -H
+        diagnostic = result.stderr
+        if binary:
+            diagnostic = diagnostic.decode("utf-8", errors="replace")
         raise RuntimeError(
             f"Docker {args[0]} failed (exit {result.returncode}): "
-            + result.stderr.strip()[:300]
+            + diagnostic.strip()[:300]
         )
 
     return result
@@ -173,154 +188,147 @@ def _execute(
 
         inputs_only.append(case["inputs"])
 
-    started = time.monotonic()
-    name = "zaklang-sandbox-" + uuid4().hex[:16]
-
     with tempfile.TemporaryDirectory(prefix="zaklang-sd21-") as tmp:
         solution = Path(tmp) / "solution.py"
         inputs = Path(tmp) / "inputs.json"
-
         solution.write_text(source, encoding="utf-8")
-
-        # Only test arguments, never expected values, enter Docker. -H
-        inputs.write_text(
-            json.dumps(inputs_only),
-            encoding="utf-8",
+        # Only test arguments, never expected values, enter Docker.
+        inputs.write_text(json.dumps(inputs_only), encoding="utf-8")
+        execution = _run_container(
+            [(solution, "/job/solution.py"), (task_file, "/job/task.json"),
+             (inputs, "/job/inputs.json")],
+            image=image, timeout_s=timeout_s, report_only=True,
         )
 
-        command = [
-            "run",
-            "--detach",
-            "--pull", "never",
-            "--name", name,
-            "--network", "none",
-            "--read-only",
-            "--cap-drop", "ALL",
-            "--security-opt", "no-new-privileges",
-            "--memory", "256m",
-            "--memory-swap", "256m",
-            "--cpus", "1",
-            "--pids-limit", "64",
-            "--tmpfs",
-            "/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777",
-            "--user", "65532:65532",
-            "--workdir", "/job",
-            "--log-driver", "local",
-            "--log-opt", "max-size=1m",
-            "--log-opt", "max-file=2",
+    if execution.outcome != "pass":
+        return SandboxResult(execution.outcome, 0, tests_total, execution.execution_ms,
+                             detail=execution.detail)
 
-            # Mount source, public task metadata, and inputs only. -H
-            "--mount", _mount(solution, "/job/solution.py"),
-            "--mount", _mount(task_file, "/job/task.json"),
-            "--mount", _mount(inputs, "/job/inputs.json"),
+    try:
+        log = execution.stdout.strip()
+        if len(log) > MAX_OUTPUT_BYTES:
+            raise ValueError("Execution report too large")
+        report = json.loads(log)
+        passed, failed = _score_report(report, cases)
+        actual = None
+        if failed:
+            entry = report["results"][failed[0] - 1]
+            if entry["ok"]:
+                actual = json.dumps(entry["value"], separators=(",", ":"))
+        return SandboxResult(
+            "fail" if failed else "pass", passed, tests_total,
+            execution.execution_ms, failed, first_failure_actual=actual,
+        )
+    except (ValueError, TypeError, KeyError, UnicodeDecodeError):
+        return SandboxResult(
+            "crash", 0, tests_total, execution.execution_ms,
+            detail="Container did not produce a valid execution report",
+        )
 
-            image,
-        ]
 
+def _run_container(
+    mounts: list[tuple[Path, str]], *, image: str, timeout_s: float,
+    command: tuple[str, ...] = (), report_only: bool = False,
+) -> ProgramResult:
+    """Shared isolated execution and cleanup for programs and task grading."""
+    started = time.monotonic()
+    name = "zaklang-sandbox-" + uuid4().hex[:16]
+
+    docker_command = [
+        "run",
+        "--detach",
+        "--pull", "never",
+        "--name", name,
+        "--network", "none",
+        "--read-only",
+        "--cap-drop", "ALL",
+        "--security-opt", "no-new-privileges",
+        "--memory", "256m",
+        "--memory-swap", "256m",
+        "--cpus", "1",
+        "--pids-limit", "64",
+        "--tmpfs",
+        "/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777",
+        "--user", "65532:65532",
+        "--workdir", "/job",
+        "--log-driver", "local",
+        "--log-opt", "max-size=1m",
+        "--log-opt", "max-file=2",
+
+        *[argument for path, target in mounts
+          for argument in ("--mount", _mount(path, target))],
+        image,
+        *command,
+    ]
+
+    try:
+        _docker(*docker_command, timeout=20)
         try:
-            _docker(*command, timeout=20)
-
-            try:
-                # Timeout applies to the entire test file. -H
-                waited = _docker(
-                    "wait",
-                    name,
-                    timeout=timeout_s,
-                )
-
-            except subprocess.TimeoutExpired:
-                return SandboxResult(
-                    "timeout",
-                    0,
-                    tests_total,
-                    (time.monotonic() - started) * 1000,
-                    detail=f"Exceeded {timeout_s:g}s execution limit",
-                )
-
-            exit_code = int(waited.stdout.strip())
-
-            state = json.loads(
-                _docker(
-                    "inspect",
-                    "--format",
-                    "{{json .State}}",
-                    name,
-                ).stdout
+            waited = _docker("wait", name, timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            return ProgramResult(
+                "timeout", execution_ms=(time.monotonic() - started) * 1000,
+                detail=f"Exceeded {timeout_s:g}s execution limit",
             )
 
-            if state.get("OOMKilled"):
-                return SandboxResult(
-                    "oom",
-                    0,
-                    tests_total,
-                    (time.monotonic() - started) * 1000,
-                    detail="Container exceeded memory limit",
-                )
+        exit_code = int(waited.stdout.strip())
+        state = json.loads(_docker("inspect", "--format", "{{json .State}}", name).stdout)
+        if state.get("OOMKilled"):
+            return ProgramResult(
+                "oom", exit_code=exit_code,
+                execution_ms=(time.monotonic() - started) * 1000,
+                detail="Container exceeded memory limit",
+            )
+        # Task grading consumes its final JSON report; standalone programs
+        # preserve every stdout byte without decoding or newline translation.
+        log_options = ("--tail", "1") if report_only else ()
+        logs = _docker("logs", *log_options, name, binary=True)
+        return ProgramResult(
+            "pass" if exit_code == 0 else "crash",
+            stdout=logs.stdout, stderr=logs.stderr, exit_code=exit_code,
+            execution_ms=(time.monotonic() - started) * 1000,
+            detail=None if exit_code == 0 else f"Program exited with code {exit_code}",
+        )
+    finally:
+        try:
+            subprocess.run(
+                ["docker", "rm", "-f", name], timeout=10,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
 
-            log = _docker(
-                "logs",
-                "--tail", "1",
-                name,
-            ).stdout.strip()
 
-            elapsed = (time.monotonic() - started) * 1000
+def execute_program(
+    source: str, *, image: str = IMAGE, timeout_s: float = 5.0,
+) -> ProgramResult:
+    """Syntax-check standalone Python, then execute only inside Docker.
 
-            try:
-                if exit_code != 0 or len(log.encode("utf-8")) > 65536:
-                    raise ValueError("Container failed or report too large")
+    Stdout and stderr are separate byte streams. The caller compares stdout
+    with its expected bytes on the host. Missing Docker/image errors propagate.
+    """
+    if not 0 < timeout_s <= 60:
+        raise ValueError("timeout_s must be between 0 and 60 seconds")
+    if not source.strip() or len(source.encode("utf-8")) > MAX_SOURCE_BYTES:
+        raise ValueError("Source must be 1–20,000 UTF-8 bytes")
+    try:
+        compile(source, "<candidate>", "exec", dont_inherit=True)
+    except SyntaxError as exc:
+        return ProgramResult("not_run", detail=f"Python syntax error at {exc.lineno}:{exc.offset}")
 
-                report = json.loads(log)
-
-                # Compare results against hidden answers outside Docker. -H
-                passed, failed = _score_report(report, cases)
-
-                outcome = "pass" if not failed else "fail"
-
-                first_failure_actual = None
-
-                if failed:
-                    # Only the candidate's output, never the expected answer. -H
-                    entry = report["results"][failed[0] - 1]
-
-                    if entry["ok"]:
-                        first_failure_actual = json.dumps(
-                            entry["value"],
-                            separators=(",", ":"),
-                        )
-
-                return SandboxResult(
-                    outcome,
-                    passed,
-                    tests_total,
-                    elapsed,
-                    failed,
-                    first_failure_actual=first_failure_actual,
-                )
-
-            except (ValueError, TypeError, KeyError):
-                return SandboxResult(
-                    "crash",
-                    0,
-                    tests_total,
-                    elapsed,
-                    detail="Container did not produce a valid execution report",
-                )
-
-        finally:
-            # Remove every disposable container, including failed runs. -H
-            try:
-                subprocess.run(
-                    ["docker", "rm", "-f", name],
-                    timeout=10,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-
-            except (
-                FileNotFoundError,
-                subprocess.TimeoutExpired,
-            ):
-                pass
+    with tempfile.TemporaryDirectory(prefix="zaklang-program-") as tmp:
+        solution = Path(tmp) / "solution.py"
+        solution.write_text(source, encoding="utf-8")
+        result = _run_container(
+            [(solution, "/job/solution.py")], image=image, timeout_s=timeout_s,
+            command=("python", "-I", "/job/solution.py"),
+        )
+    if len(result.stdout) + len(result.stderr) > MAX_OUTPUT_BYTES:
+        result.outcome = "crash"
+        result.detail = f"Program output exceeded {MAX_OUTPUT_BYTES} bytes"
+        result.stdout = result.stdout[:MAX_OUTPUT_BYTES]
+        result.stderr = result.stderr[:MAX_OUTPUT_BYTES - len(result.stdout)]
+    return result
 
 
 def evaluate(
