@@ -1,0 +1,1 @@
+@solve(a:I,b:I)I{a=abs(a);b=abs(b);~b!=0{t:=a%b;a=b;b=t}^a}

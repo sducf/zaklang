@@ -1,0 +1,14 @@
+{
+  "id": "title_case",
+  "title": "Title Case",
+  "category": "strings",
+  "prompt": "Given a sentence of words made only of letters and separated by single spaces, with no spaces at the start or end, return the sentence with the first letter of every word in uppercase and every other letter in lowercase. Keep the single spaces between words. An empty string stays empty.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "outputType": "string"
+}
