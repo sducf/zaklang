@@ -1,0 +1,1 @@
+@solve(text:S)S{r:[S]=[];~w:spl(text," "){r<<up(w[:1])+lo(w[1:])}^jn(r," ")}

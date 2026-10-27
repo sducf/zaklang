@@ -1,0 +1,1 @@
+@solve(n:I)I{n=abs(n);s:=0;~n>0{s+=n%10;n/=10}^s}
