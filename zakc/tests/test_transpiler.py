@@ -7,15 +7,12 @@ import sys
 
 import pytest
 
-from compiler.src import TranspileError, compile, transpile
-from compiler.src.parser import parse
+import zakc
 
 
 def emitted(source):
     """Compile and emit a trusted example, failing the test on static errors."""
-    result = compile(source)
-    assert result.ok and result.ast is not None, result.errors
-    return transpile(result.ast)
+    return zakc.zak_transpile(source).source
 
 
 def run_trusted(source, tmp_path):
@@ -28,40 +25,21 @@ def run_trusted(source, tmp_path):
     return result.stdout.decode()
 
 
-def test_exact_snapshot_for_typed_arithmetic():
+def test_exact_snapshot_for_typed_arithmetic(tmp_path):
     output = emitted('x:=7/2;y:=7.0/2.0;out(x);out(y)')
     expected = (Path(__file__).parent / 'snapshots/arithmetic.py.txt').read_text()
     assert output == expected
     builtins.compile(output, '<transpiled>', 'exec')
+    assert run_trusted('x:=7/2;y:=7.0/2.0;out(x);out(y)', tmp_path) == '3\n3.5\n'
 
 
-def test_exact_snapshot_for_function_and_control_flow():
+def test_exact_snapshot_for_function_and_control_flow(tmp_path):
     source = '@f(n:I)I{total:=0;~i:0..n{?i%2==0{total+=i}}^total}out(f(4))'
     output = emitted(source)
     expected = (Path(__file__).parent / 'snapshots/function.py.txt').read_text()
     assert output == expected
     builtins.compile(output, '<transpiled>', 'exec')
-
-
-def test_repeated_emission_is_identical_and_independent():
-    program = compile('a:=[1];out(a)').ast
-    assert program is not None
-    first = transpile(program)
-    emitted('x:="unrelated";out(x)')
-    assert transpile(program) == first
-    assert emitted('a:=[1];out(a)') == first
-
-
-@pytest.mark.parametrize('source,code', [
-    ('out(missing)', 'UNDEFINED_NAME'),
-    ('a:=[1];a<<T', 'TYPE_MISMATCH'),
-    ('a:=[x~x:[1]]', 'UNSUPPORTED_FEATURE'),
-])
-def test_invalid_or_unsupported_ast_raises_structured_error(source, code):
-    with pytest.raises(TranspileError) as caught:
-        transpile(parse(source))
-    assert code in [error.code for error in caught.value.errors]
-    assert all(error.line > 0 and error.col > 0 for error in caught.value.errors)
+    assert run_trusted(source, tmp_path) == '2\n'
 
 
 @pytest.mark.parametrize('source,expected', [

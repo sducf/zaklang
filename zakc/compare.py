@@ -4,7 +4,7 @@ From the repository root:
     .venv/bin/python zakc/compare.py --docker
 
 The compiler implementation itself is entirely Rust. This development harness
-reuses the existing Python test corpus and sandbox as independent oracles.
+reuses the migrated test cases and sandbox as independent oracles.
 """
 import argparse
 import ast
@@ -53,12 +53,19 @@ def main():
         return report
 
     cases = []
-    for name in ("test_compile.py", "test_semantic.py", "test_transpiler.py"):
-        cases.extend(parameter_cases(ROOT / "compiler/tests" / name))
+    for name in ("compile.json", "semantic.json"):
+        groups = json.loads((ROOT / "zakc/tests/cases" / name).read_text(encoding="utf-8"))
+        for rows in groups.values():
+            for row in rows:
+                cases.append({"source": row} if isinstance(row, str)
+                             else {"source": row[0], "code": row[1]})
+    cases.extend(parameter_cases(ROOT / "zakc/tests/test_transpiler.py"))
     sources = list(dict.fromkeys(case["source"] for case in cases))
-    fixtures = sorted((ROOT / "compiler/tests/conformance").glob("*.zak"))
+    fixtures = sorted((ROOT / "zakc/tests/conformance").glob("*.zak"))
     references = sorted((ROOT / "zakbench/tasks").glob("*/reference.zak"))
-    assert len(fixtures) == 15 and len(references) == 10
+    tasks = sorted((ROOT / "zakbench/tasks").glob("*/task.json"))
+    assert len(fixtures) == 15 and tasks
+    assert {path.parent for path in references} == {path.parent for path in tasks}
     failures = []
     emitted = {}
     for source in sources + [path.read_text(encoding="utf-8") for path in fixtures + references]:
@@ -99,7 +106,7 @@ def main():
             assert result.tests_passed == result.tests_total
             total += result.tests_total
         summary["hidden_cases_passed"] = total
-        print(f"Docker Zak references: 10/10, {total} hidden cases passed", flush=True)
+        print(f"Docker Zak references: {len(references)}/{len(references)}, {total} hidden cases passed", flush=True)
         examples = [case for case in cases if "expected" in case]
         for index, case in enumerate(examples, start=1):
             result = execute_program(emitted[case["source"]])

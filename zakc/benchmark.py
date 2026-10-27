@@ -19,7 +19,7 @@ def main():
     args = parser.parse_args()
     if args.rounds < 1:
         parser.error("rounds must be positive")
-    paths = sorted((ROOT / "compiler/tests/conformance").glob("*.zak"))
+    paths = sorted((ROOT / "zakc/tests/conformance").glob("*.zak"))
     paths += sorted((ROOT / "zakbench/tasks").glob("*/reference.zak"))
     sources = [path.read_text(encoding="utf-8") for path in paths]
 
@@ -42,7 +42,7 @@ def main():
     rust = json.loads(subprocess.check_output([str(binary), str(args.rounds)], text=True))
     report = {"python": python, "rust": rust,
               "ratio_python_seconds_over_rust_seconds": elapsed / rust["seconds"],
-              "scope": "25 existing programs; parse + check + emit + Python AST validation, warm in-process"}
+              "scope": f"{len(sources)} programs; parse + check + emit + Python AST validation, warm in-process"}
     print(json.dumps(report, indent=2))
     if args.report:
         args.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

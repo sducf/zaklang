@@ -28,11 +28,11 @@ fn span(pair: &P<'_>) -> Span {
         end_col,
     }
 }
-fn next<'a>(pairs: &mut Pairs<'a, Rule>, location: Span) -> Result<P<'a>> {
-    pairs
-        .next()
-        .trace_ctx("expected grammar child")
-        .at(location)
+
+impl Span {
+    fn next<'a>(self, pairs: &mut Pairs<'a, Rule>) -> Result<P<'a>> {
+        pairs.next().trace_ctx("expected grammar child").at(self)
+    }
 }
 
 pub fn parse(source: &str) -> Result<Program> {
@@ -41,6 +41,7 @@ pub fn parse(source: &str) -> Result<Program> {
 
 fn parse_inner(source: &str) -> Result<Program> {
     guard_complexity(source)?;
+
     let mut pairs = ZakParser::parse(Rule::program, source).map_err(|error| {
         let location = match error.location {
             pest::error::InputLocation::Pos(offset) => Span::at_offset(source, offset),
@@ -50,8 +51,10 @@ fn parse_inner(source: &str) -> Result<Program> {
         };
         CompilerError::new(ErrorCode::SyntaxError, Some(location), error.to_string())
     })?;
-    let program = next(&mut pairs, Span::point(1, 1))?;
-    let seq = next(&mut program.into_inner(), Span::point(1, 1))?;
+
+    let program = Span::point(1, 1).next(&mut pairs)?;
+    let seq = Span::point(1, 1).next(&mut program.into_inner())?;
+
     Ok(Program {
         statements: Builder { next_id: 0 }.block(seq)?,
     })
@@ -65,11 +68,13 @@ fn guard_complexity(source: &str) -> Result<()> {
             "Source exceeds the 1 MB prototype budget",
         ));
     }
+
     let mut in_string = false;
     let mut escaped = false;
     let mut nesting = 0usize;
     let mut unary_run = 0usize;
     let mut branches = 0usize;
+
     for (offset, ch) in source.char_indices() {
         if in_string {
             if escaped {
@@ -86,16 +91,19 @@ fn guard_complexity(source: &str) -> Result<()> {
                 ')' | ']' | '}' => nesting = nesting.saturating_sub(1),
                 _ => (),
             }
+
             if matches!(ch, '-' | '#' | '!') {
                 unary_run += 1;
             } else if !ch.is_whitespace() {
                 unary_run = 0;
             }
+
             // Ternaries and elif chains recurse without adding delimiters.
             // Bound their total markers before Pest builds recursive frames.
             if ch == '?' {
                 branches += 1;
             }
+
             if nesting > 32 || unary_run > 128 || branches > 128 {
                 return Err(CompilerError::new(
                     ErrorCode::ComplexityLimit,
@@ -105,18 +113,21 @@ fn guard_complexity(source: &str) -> Result<()> {
             }
         }
     }
+
     Ok(())
 }
 
 struct Builder {
     next_id: u32,
 }
+
 impl Builder {
     fn id(&mut self) -> NodeId {
         let id = NodeId(self.next_id);
         self.next_id += 1;
         id
     }
+
     fn expr_node(&mut self, location: Span, kind: ExprKind) -> Result<Expr> {
         let child_depth = match &kind {
             ExprKind::Literal(_) | ExprKind::Name(_) => 0,
@@ -155,6 +166,7 @@ impl Builder {
                 .max(iteration.stop.as_ref().map_or(0, |e| e.depth))
                 .max(condition.as_ref().map_or(0, |e| e.depth)),
         };
+
         if child_depth >= 128 {
             return Err(CompilerError::new(
                 ErrorCode::ComplexityLimit,
@@ -162,6 +174,7 @@ impl Builder {
                 "Expression nesting exceeds 128",
             ));
         }
+
         Ok(Expr {
             id: self.id(),
             span: location,
@@ -169,6 +182,7 @@ impl Builder {
             depth: child_depth + 1,
         })
     }
+
     fn binding(&mut self, pair: P<'_>) -> BindingName {
         BindingName {
             id: self.id(),
@@ -176,19 +190,22 @@ impl Builder {
             span: span(&pair),
         }
     }
+
     fn block(&mut self, pair: P<'_>) -> Result<Vec<Stmt>> {
         if pair.as_rule() == Rule::block {
-            return self.block(next(&mut pair.into_inner(), Span::point(1, 1))?);
+            return self.block(Span::point(1, 1).next(&mut pair.into_inner())?);
         }
         pair.into_inner().map(|pair| self.statement(pair)).collect()
     }
+
     fn ty(pair: P<'_>) -> Result<Type> {
         let location = span(&pair);
         let kind = pair.as_rule();
         let text = pair.as_str();
         let mut children = pair.clone().into_inner();
+
         Ok(match kind {
-            Rule::ty => Self::ty(next(&mut children, location)?)?,
+            Rule::ty => Self::ty(location.next(&mut children)?)?,
             Rule::primitive => match text {
                 "I" => Type::Int,
                 "R" => Type::Real,
@@ -202,10 +219,10 @@ impl Builder {
                     ));
                 }
             },
-            Rule::array_type => Type::array(Self::ty(next(&mut children, location)?)?),
+            Rule::array_type => Type::array(Self::ty(location.next(&mut children)?)?),
             Rule::map_type => Type::map(
-                Self::ty(next(&mut children, location)?)?,
-                Self::ty(next(&mut children, location)?)?,
+                Self::ty(location.next(&mut children)?)?,
+                Self::ty(location.next(&mut children)?)?,
             ),
             _ => {
                 return Err(CompilerError::new(
@@ -216,6 +233,7 @@ impl Builder {
             }
         })
     }
+
     fn statement(&mut self, pair: P<'_>) -> Result<Stmt> {
         let location = span(&pair);
         let rule = pair.as_rule();
@@ -230,12 +248,12 @@ impl Builder {
         let mut children = pair.into_inner();
         let kind = match rule {
             Rule::declare => {
-                let name = next(&mut children, location)?.as_str().to_owned();
-                let value_or_type = next(&mut children, location)?;
+                let name = location.next(&mut children)?.as_str().to_owned();
+                let value_or_type = location.next(&mut children)?;
                 let (declared_type, value) = if value_or_type.as_rule() == Rule::ty {
                     (
                         Some(Self::ty(value_or_type)?),
-                        self.expression(next(&mut children, location)?)?,
+                        self.expression(location.next(&mut children)?)?,
                     )
                 } else {
                     (None, self.expression(value_or_type)?)
@@ -247,8 +265,8 @@ impl Builder {
                 }
             }
             Rule::assign => {
-                let target = self.expression(next(&mut children, location)?)?;
-                let op = next(&mut children, location)?;
+                let target = self.expression(location.next(&mut children)?)?;
+                let op = location.next(&mut children)?;
                 let operator = if op.as_str() == "=" {
                     AssignOp::Set
                 } else {
@@ -257,24 +275,25 @@ impl Builder {
                 StmtKind::Assign {
                     target,
                     operator,
-                    value: self.expression(next(&mut children, location)?)?,
+                    value: self.expression(location.next(&mut children)?)?,
                 }
             }
             Rule::append => StmtKind::Append {
-                target: self.expression(next(&mut children, location)?)?,
-                value: self.expression(next(&mut children, location)?)?,
+                target: self.expression(location.next(&mut children)?)?,
+                value: self.expression(location.next(&mut children)?)?,
             },
-            Rule::return_stmt => StmtKind::Return(self.expression(next(&mut children, location)?)?),
+            Rule::return_stmt => StmtKind::Return(self.expression(location.next(&mut children)?)?),
             Rule::break_stmt => StmtKind::Break,
             Rule::continue_stmt => StmtKind::Continue,
             Rule::if_stmt => {
-                let condition = self.expression(next(&mut children, location)?)?;
-                let then_body = self.block(next(&mut children, location)?)?;
+                let condition = self.expression(location.next(&mut children)?)?;
+                let then_body = self.block(location.next(&mut children)?)?;
                 let else_body = match children.next() {
                     None => vec![],
                     Some(branch) if branch.as_rule() == Rule::block => self.block(branch)?,
                     Some(branch) => vec![self.statement(branch)?],
                 };
+
                 StmtKind::If {
                     condition,
                     then_body,
@@ -282,43 +301,45 @@ impl Builder {
                 }
             }
             Rule::while_stmt => StmtKind::While {
-                condition: self.expression(next(&mut children, location)?)?,
-                body: self.block(next(&mut children, location)?)?,
+                condition: self.expression(location.next(&mut children)?)?,
+                body: self.block(location.next(&mut children)?)?,
             },
             Rule::for_stmt => {
-                let names = next(&mut children, location)?
+                let names = location
+                    .next(&mut children)?
                     .into_inner()
                     .map(|p| self.binding(p))
                     .collect();
-                let iteration = self.iteration(next(&mut children, location)?)?;
+                let iteration = self.iteration(location.next(&mut children)?)?;
                 StmtKind::For {
                     names,
                     iteration,
-                    body: self.block(next(&mut children, location)?)?,
+                    body: self.block(location.next(&mut children)?)?,
                 }
             }
             Rule::function => {
-                let name = next(&mut children, location)?.as_str().to_owned();
-                let parameters_or_type = next(&mut children, location)?;
+                let name = location.next(&mut children)?.as_str().to_owned();
+                let parameters_or_type = location.next(&mut children)?;
                 let mut parameters = vec![];
                 let return_type = if parameters_or_type.as_rule() == Rule::params {
                     for param in parameters_or_type.into_inner() {
                         let mut fields = param.into_inner();
-                        let binding = self.binding(next(&mut fields, location)?);
+                        let binding = self.binding(location.next(&mut fields)?);
                         parameters.push(Parameter {
                             binding,
-                            ty: Self::ty(next(&mut fields, location)?)?,
+                            ty: Self::ty(location.next(&mut fields)?)?,
                         });
                     }
-                    Self::ty(next(&mut children, location)?)?
+                    Self::ty(location.next(&mut children)?)?
                 } else {
                     Self::ty(parameters_or_type)?
                 };
+
                 StmtKind::Function(Function {
                     name,
                     parameters,
                     return_type,
-                    body: self.block(next(&mut children, location)?)?,
+                    body: self.block(location.next(&mut children)?)?,
                 })
             }
             _ => {
@@ -335,17 +356,20 @@ impl Builder {
             kind,
         })
     }
+
     fn iteration(&mut self, pair: P<'_>) -> Result<Iteration> {
         let location = span(&pair);
         let mut children = pair.into_inner();
-        let start = self.expression(next(&mut children, location)?)?;
+        let start = self.expression(location.next(&mut children)?)?;
         let stop = children.next().map(|p| self.expression(p)).transpose()?;
+
         Ok(Iteration {
             span: location,
             start,
             stop,
         })
     }
+
     fn binary(text: &str, location: Span) -> Result<BinaryOp> {
         text.parse().map_err(|_| {
             CompilerError::new(
@@ -363,7 +387,7 @@ impl Builder {
         let mut children = pair.clone().into_inner();
         let kind = match rule {
             Rule::expr | Rule::parenthesized | Rule::lower | Rule::upper => {
-                return self.expression(next(&mut children, location)?);
+                return self.expression(location.next(&mut children)?);
             }
             Rule::integer => ExprKind::Literal(Literal::Int(text.to_owned())),
             Rule::float => ExprKind::Literal(Literal::Real(text.to_owned())),
@@ -378,12 +402,13 @@ impl Builder {
                     [value, tail] if tail.as_rule() == Rule::comprehension => {
                         let value = Box::new(self.expression(value.clone())?);
                         let mut fields = tail.clone().into_inner();
-                        let name = next(&mut fields, location)?.as_str().to_owned();
-                        let iteration = Box::new(self.iteration(next(&mut fields, location)?)?);
+                        let name = location.next(&mut fields)?.as_str().to_owned();
+                        let iteration = Box::new(self.iteration(location.next(&mut fields)?)?);
                         let condition = fields
                             .next()
                             .map(|p| self.expression(p).map(Box::new))
                             .transpose()?;
+
                         ExprKind::Comprehension {
                             value,
                             name,
@@ -401,21 +426,22 @@ impl Builder {
             }
             Rule::map => {
                 let mut entries = vec![];
+
                 for pair in children {
                     let mut fields = pair.into_inner();
                     entries.push((
-                        self.expression(next(&mut fields, location)?)?,
-                        self.expression(next(&mut fields, location)?)?,
+                        self.expression(location.next(&mut fields)?)?,
+                        self.expression(location.next(&mut fields)?)?,
                     ));
                 }
                 ExprKind::Map(entries)
             }
             Rule::cast => ExprKind::Cast(
-                Self::ty(next(&mut children, location)?)?,
-                Box::new(self.expression(next(&mut children, location)?)?),
+                Self::ty(location.next(&mut children)?)?,
+                Box::new(self.expression(location.next(&mut children)?)?),
             ),
             Rule::call => {
-                let name = next(&mut children, location)?.as_str().to_owned();
+                let name = location.next(&mut children)?.as_str().to_owned();
                 let arguments = match children.next() {
                     Some(args) => args
                         .into_inner()
@@ -426,21 +452,23 @@ impl Builder {
                 ExprKind::Call { name, arguments }
             }
             Rule::ternary => {
-                let condition = self.expression(next(&mut children, location)?)?;
+                let condition = self.expression(location.next(&mut children)?)?;
                 let Some(then_value) = children.next() else {
                     return Ok(condition);
                 };
                 ExprKind::Conditional {
                     condition: Box::new(condition),
                     then_value: Box::new(self.expression(then_value)?),
-                    else_value: Box::new(self.expression(next(&mut children, location)?)?),
+                    else_value: Box::new(self.expression(location.next(&mut children)?)?),
                 }
             }
             Rule::or_expr | Rule::and_expr | Rule::compare | Rule::sum | Rule::product => {
-                let mut value = self.expression(next(&mut children, location)?)?;
+                let mut value = self.expression(location.next(&mut children)?)?;
+
                 while let Some(op) = children.next() {
-                    let right = self.expression(next(&mut children, location)?)?;
+                    let right = self.expression(location.next(&mut children)?)?;
                     let span = value.span.through(right.span);
+
                     value = self.expr_node(
                         span,
                         ExprKind::Binary(
@@ -459,12 +487,14 @@ impl Builder {
                     .trace_ctx("missing unary operand")
                     .at(location)?;
                 let mut value = self.expression(last)?;
+
                 for prefix in fields.into_iter().rev() {
                     let op = match prefix.as_str() {
                         "!" => UnaryOp::Not,
                         "#" => UnaryOp::Len,
                         _ => UnaryOp::Neg,
                     };
+
                     value = self.expr_node(
                         span(&prefix).through(value.span),
                         ExprKind::Unary(op, Box::new(value)),
@@ -473,7 +503,7 @@ impl Builder {
                 return Ok(value);
             }
             Rule::post | Rule::target => {
-                let mut value = self.expression(next(&mut children, location)?)?;
+                let mut value = self.expression(location.next(&mut children)?)?;
                 for suffix in children {
                     let span = value.span.through(span(&suffix));
                     let suffix_rule = suffix.as_rule();
@@ -481,7 +511,7 @@ impl Builder {
                     let kind = if suffix_rule == Rule::index_suffix {
                         ExprKind::Index(
                             Box::new(value),
-                            Box::new(self.expression(next(&mut fields, span)?)?),
+                            Box::new(self.expression(span.next(&mut fields)?)?),
                         )
                     } else {
                         let (mut lower, mut upper, mut colon) = (None, None, false);
@@ -517,6 +547,7 @@ impl Builder {
                 ));
             }
         };
+
         self.expr_node(location, kind)
     }
 }

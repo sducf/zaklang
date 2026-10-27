@@ -2,8 +2,8 @@
 
 A native Rust Zak compiler alongside the existing Python compiler. Package,
 library, and binary are named `zakc`. The compiler implementation is native
-Rust; Python is used only by the comparison/benchmark harnesses and the
-existing execution sandbox.
+Rust. Optional Python bindings are enabled with `--features python`; normal
+Cargo builds, tests, and examples do not depend on Python or libpython.
 
 Read [ANALYSIS.md](ANALYSIS.md) for the migration assessment and tradeoffs.
 
@@ -12,8 +12,8 @@ Read [ANALYSIS.md](ANALYSIS.md) for the migration assessment and tradeoffs.
 Run from the repository root:
 
 ```sh
-cargo run --manifest-path zakc/Cargo.toml -- compiler/tests/conformance/011_recursion.zak
-cargo run --manifest-path zakc/Cargo.toml -- --emit check compiler/tests/conformance zakbench/tasks
+cargo run --manifest-path zakc/Cargo.toml -- zakc/tests/conformance/011_recursion.zak
+cargo run --manifest-path zakc/Cargo.toml -- --emit check zakc/tests/conformance zakbench/tasks
 cargo run --manifest-path zakc/Cargo.toml -- --emit zak-ast zakbench/tasks/array_sum/reference.zak
 cargo run --manifest-path zakc/Cargo.toml -- --emit python-ast zakbench/tasks/array_sum/reference.zak
 cargo run --manifest-path zakc/Cargo.toml -- --json --emit check path/to/program.zak
@@ -30,16 +30,16 @@ for `.zak` files. Failures exit with code 1.
 ## Library
 
 ```rust
-use zakc::{compile, compile_to_python};
+use zakc::{zak_check, zak_transpile};
 
-let checked = compile("x:=7/2;out(x)").unwrap();
-let generated = compile_to_python("x:=7/2;out(x)").unwrap();
+let checked = zak_check("x:=7/2;out(x)").unwrap();
+let generated = zak_transpile("x:=7/2;out(x)").unwrap();
 assert!(!generated.python_ast.is_empty());
 assert!(generated.source.contains("//"));
 ```
 
-The staged interfaces are `parser::parse`, `semantic::check`, and
-`transpiler::transpile`. `CheckedProgram` has a private constructor and exposes
+The staged interfaces are `parser::parse`, `Program::check`, and
+`CheckedProgram::transpile`. `CheckedProgram` has a private constructor and exposes
 immutable syntax/type metadata. The emitter accepts only `&CheckedProgram`.
 `TranspiledProgram` contains Python source, a RustPython `ast::Suite`, and a
 mapping from generated Python lines to Zak spans. No compile API executes code.
@@ -47,6 +47,45 @@ mapping from generated Python lines to Zak spans. No compile API executes code.
 Node IDs are stable within one parsed program and remain valid when it moves.
 Checking rejects duplicate IDs with `INVALID_AST`; independently parsed trees
 cannot be concatenated without reassigning their IDs.
+
+## Python bindings
+
+The Python module exports `zak_check(source)` and `zak_transpile(source)`.
+They return `CheckedProgram` and `TranspiledProgram` objects respectively;
+the latter exposes generated Python through its read-only `source` property.
+Invalid programs raise `ValueError` containing the compiler diagnostics.
+The Rust functions retain their existing signatures and structured errors.
+The bindings are opt-in; the default Rust library, CLI, tests, and throughput
+example build without linking libpython. On Unix, set
+`PYO3_BUILD_EXTENSION_MODULE=1` when building the Python extension so it uses
+the interpreter's Python symbols instead of linking an embedding library.
+
+For a manual Linux build, run from the repository root:
+
+```sh
+PYO3_BUILD_EXTENSION_MODULE=1 cargo build --manifest-path zakc/Cargo.toml --features python --lib
+mkdir -p zakc/target/python
+cp zakc/target/debug/libzakc.so zakc/target/python/zakc.so
+cp zakc/zakc.pyi zakc/target/python/zakc.pyi
+PYTHONPATH=zakc/target/python python3 zakc/tests/python_bindings.py
+```
+
+With that directory on `PYTHONPATH`, Python callers can use:
+
+```python
+import zakc
+
+checked = zakc.zak_check("x:=7/2;out(x)")
+generated = zakc.zak_transpile("x:=7/2;out(x)")
+print(generated.source)
+```
+
+The `zakc/zakc.pyi` stub describes the Python-visible API for autocomplete and
+static type checking. The repository's `pyrightconfig.json` includes `zakc`
+in `extraPaths`, so Pyright and Pylance can resolve the stub while editing.
+When distributing the extension manually, keep `zakc.pyi` beside `zakc.so`
+(or the platform's corresponding extension file). Use a normal `import zakc`
+so the language server can resolve the signatures statically.
 
 ## Errors and context
 
@@ -76,27 +115,86 @@ context messages. These two coordinate systems are intentionally separate.
 variant iteration, and error implementations. There are no manual `Display`
 implementations.
 
-## Verify
+## Run all tests
+
+Run the following from the **repository root** on Linux/WSL. Install Rust,
+Python 3.12 or newer with `venv`/pip, and Node.js (required by Pyright).
+The complete suite also requires Docker running with WSL integration enabled
+when applicable. The image is built by the command below.
+
+```sh
+# Install Python test and type-checking tools.
+python3 -m venv .venv
+.venv/bin/python -m pip install -r zakc/requirements-dev.txt
+
+# All native tests: AST/parser, metadata, semantics, CLI, snapshots, and fixtures.
+cargo test --manifest-path zakc/Cargo.toml
+
+# Build the optional Python extension for the test interpreter.
+PYO3_PYTHON="$PWD/.venv/bin/python" PYO3_BUILD_EXTENSION_MODULE=1 \
+  cargo build --manifest-path zakc/Cargo.toml --features python --lib
+mkdir -p zakc/target/python
+cp zakc/target/debug/libzakc.so zakc/target/python/zakc.so
+cp zakc/zakc.pyi zakc/target/python/zakc.pyi
+
+# All Python tests, including bindings, runtime corpus, and Docker conformance.
+docker build -t zaklang-sandbox ./sandbox
+PYTHONPATH="$PWD/zakc/target/python:$PWD" \
+  .venv/bin/python -m pytest -c zakc/pytest.ini zakc/tests -q
+
+# Type checking, formatting, and linting for both build modes.
+.venv/bin/pyright --project zakc/pyrightconfig.json
+cargo fmt --manifest-path zakc/Cargo.toml --check
+cargo clippy --manifest-path zakc/Cargo.toml --all-targets -- -D warnings
+PYO3_PYTHON="$PWD/.venv/bin/python" PYO3_BUILD_EXTENSION_MODULE=1 \
+  cargo clippy --manifest-path zakc/Cargo.toml --features python --lib -- -D warnings
+```
+
+`pytest.ini` also collects `tests/python_bindings.py`, so the pytest command
+includes all four binding contracts. Native tests read the actual Rust AST,
+checked type metadata, and RustPython AST; all 107 distinct parameterized
+legacy source examples and all 22 runtime examples are preserved. The two
+legacy tests that monkeypatched Python parser exceptions were specific to
+the retired Python test implementation; the Rust suite checks native
+diagnostics and that checking never executes source instead.
+
+For local development without Docker, after building the extension above:
 
 ```sh
 cargo test --manifest-path zakc/Cargo.toml
-cargo fmt --manifest-path zakc/Cargo.toml --check
-cargo clippy --manifest-path zakc/Cargo.toml --all-targets -- -D warnings
+PYTHONPATH="$PWD/zakc/target/python:$PWD" \
+  .venv/bin/python -m pytest -c zakc/pytest.ini zakc/tests --ignore=zakc/tests/conformance -q
+```
+
+Docker-only tests can be rerun with:
+
+```sh
+PYTHONPATH="$PWD/zakc/target/python:$PWD" \
+  .venv/bin/python -m pytest -c zakc/pytest.ini zakc/tests/conformance -q
+```
+
+Docker tests fail when Docker or the image is unavailable. They execute the
+15 exact stdout fixtures plus the three sample references through the
+existing isolated evaluator. Trusted subprocess tests separately execute all
+15 fixtures, all discovered benchmark references (currently 50), and the 22
+runtime examples. Missing references fail the native fixture/signature checks.
+
+### Optional comparison with the legacy Python compiler
+
+This development harness compares both compiler implementations against the
+migrated case data. It is separate from the native and binding test suites.
+
+```sh
+.venv/bin/python -m pip install -r compiler/requirements.txt
 cargo build --manifest-path zakc/Cargo.toml
 .venv/bin/python zakc/compare.py --report zakc/verification.json
-docker build -t zaklang-sandbox ./sandbox
 .venv/bin/python zakc/compare.py --docker --report zakc/verification.json
 ```
 
-The comparison harness extracts the existing test examples without editing
-them. It compares acceptance and diagnostic-code sets against the Python
-compiler, then syntax-checks Rust-generated Python with CPython. Docker mode
-compares all 15 stdout fixtures, checks all 10 references against 69 hidden
-cases, and executes all 22 existing transpiler runtime examples.
-
-The Rust contracts cover spans, Unicode columns, arbitrary-size integer
-literals, stable metadata, error context propagation, deterministic output,
-the complete corpus, and regressions found in independent review.
+Docker comparison mode checks all discovered references and reports their
+current hidden-case total. Old checked-in performance and verification JSON
+files describe their original ten-reference corpus; rerun the scripts to
+produce reports for the current task set.
 
 ## Small throughput experiment
 
@@ -105,8 +203,9 @@ cargo build --release --manifest-path zakc/Cargo.toml --example throughput
 .venv/bin/python zakc/benchmark.py --report zakc/benchmark-results.json
 ```
 
-Both pipelines parse, check, emit, and parse emitted Python, over the same 25
-programs. Startup, file reads, and execution are excluded. This is a local
+Both pipelines parse, check, emit, and parse emitted Python over the same
+discovered programs (currently 15 fixtures plus 50 references). Startup,
+file reads, and execution are excluded. This is a local
 warm-process comparison, not an end-to-end benchmark of model inference or
 Docker execution. See the JSON result and analysis for qualifications.
 

@@ -13,74 +13,96 @@ pub struct SourceMapEntry {
     pub python_line: usize,
     pub zak: Span,
 }
+
 #[derive(Debug)]
+#[cfg_attr(feature = "python", pyo3::pyclass(module = "zakc"))]
 pub struct TranspiledProgram {
     pub source: String,
     pub python_ast: py::Suite,
     pub source_map: Vec<SourceMapEntry>,
 }
 
-pub fn transpile(program: &CheckedProgram) -> Result<TranspiledProgram, CompilerError> {
-    crate::with_stack(|| transpile_inner(program))
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl TranspiledProgram {
+    #[getter]
+    fn source(&self) -> &str {
+        &self.source
+    }
 }
 
-fn transpile_inner(program: &CheckedProgram) -> Result<TranspiledProgram, CompilerError> {
-    let mut emitter = Emitter {
-        checked: program,
-        source: String::new(),
-        source_map: vec![],
-        indent: 0,
-        line_number: 1,
-    };
-    emitter.line("import builtins as _ZAK_builtins", None);
-    emitter.line("def _ZAK_join(values, delimiter):", None);
-    emitter.line("    return delimiter.join(values)", None);
-    for statement in &program.program.statements {
-        if matches!(statement.kind, StmtKind::Function(_)) {
-            emitter.statement(statement)?;
-        }
+impl CheckedProgram {
+    pub fn transpile(&self) -> Result<TranspiledProgram, CompilerError> {
+        crate::with_stack(|| self.transpile_inner())
     }
-    for statement in &program.program.statements {
-        if !matches!(statement.kind, StmtKind::Function(_)) {
-            emitter.statement(statement)?;
+
+    fn transpile_inner(&self) -> Result<TranspiledProgram, CompilerError> {
+        let mut emitter = Emitter {
+            checked: self,
+            source: String::new(),
+            source_map: vec![],
+            indent: 0,
+            line_number: 1,
+        };
+
+        emitter.line("import builtins as _ZAK_builtins", None);
+        emitter.line("def _ZAK_join(values, delimiter):", None);
+        emitter.line("    return delimiter.join(values)", None);
+
+        for statement in &self.program.statements {
+            if matches!(statement.kind, StmtKind::Function(_)) {
+                emitter.statement(statement)?;
+            }
         }
-    }
-    for statement in &program.program.statements {
-        if let StmtKind::Function(function) = &statement.kind {
-            emitter.line(
-                &format!(
-                    "_ZAK_builtins.globals()[{}] = {}",
-                    quote(&function.name)?,
-                    emitter.symbol(statement.id, statement.span)?
-                ),
-                Some(statement.span),
-            );
+
+        for statement in &self.program.statements {
+            if !matches!(statement.kind, StmtKind::Function(_)) {
+                emitter.statement(statement)?;
+            }
         }
+
+        for statement in &self.program.statements {
+            if let StmtKind::Function(function) = &statement.kind {
+                emitter.line(
+                    &format!(
+                        "_ZAK_builtins.globals()[{}] = {}",
+                        quote(&function.name)?,
+                        emitter.symbol(statement.id, statement.span)?
+                    ),
+                    Some(statement.span),
+                );
+            }
+        }
+
+        let python_ast =
+            py::Suite::parse(&emitter.source, "<zakc-generated>").map_err(|failure| {
+                let offset = usize::from(failure.offset);
+                let line = emitter.source.as_bytes()[..offset.min(emitter.source.len())]
+                    .iter()
+                    .filter(|&&b| b == b'\n')
+                    .count()
+                    + 1;
+
+                let span = emitter
+                    .source_map
+                    .iter()
+                    .rev()
+                    .find(|entry| entry.python_line <= line)
+                    .map(|entry| entry.zak);
+
+                CompilerError::new(
+                    ErrorCode::PythonAstError,
+                    span,
+                    format!("Invalid emitted Python at generated line {line}: {failure}"),
+                )
+            })?;
+
+        Ok(TranspiledProgram {
+            source: emitter.source,
+            python_ast,
+            source_map: emitter.source_map,
+        })
     }
-    let python_ast = py::Suite::parse(&emitter.source, "<zakc-generated>").map_err(|failure| {
-        let offset = usize::from(failure.offset);
-        let line = emitter.source.as_bytes()[..offset.min(emitter.source.len())]
-            .iter()
-            .filter(|&&b| b == b'\n')
-            .count()
-            + 1;
-        let span = emitter
-            .source_map
-            .iter()
-            .rev()
-            .find(|entry| entry.python_line <= line)
-            .map(|entry| entry.zak);
-        CompilerError::new(
-            ErrorCode::PythonAstError,
-            span,
-            format!("Invalid emitted Python at generated line {line}: {failure}"),
-        )
-    })?;
-    Ok(TranspiledProgram {
-        source: emitter.source,
-        python_ast,
-        source_map: emitter.source_map,
-    })
 }
 
 fn quote(text: &str) -> Result<String, CompilerError> {

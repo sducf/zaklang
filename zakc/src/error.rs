@@ -42,6 +42,7 @@ pub enum ErrorType {
     #[error("Unexpected None::<{0}>")]
     UnexpectedNone(&'static str),
 }
+
 #[derive(Clone, Debug, Serialize, derive_more::Display)]
 #[display("{file}:{line}:{column}")]
 pub struct RustLocation {
@@ -49,15 +50,18 @@ pub struct RustLocation {
     pub line: u32,
     pub column: u32,
 }
+
 #[derive(Clone, Debug, Serialize)]
 pub struct ErrorTrace {
     pub message: Option<String>,
     pub location: RustLocation,
 }
+
 impl Default for ErrorTrace {
     #[track_caller]
     fn default() -> Self {
         let caller = Location::caller();
+
         Self {
             message: None,
             location: RustLocation {
@@ -68,6 +72,7 @@ impl Default for ErrorTrace {
         }
     }
 }
+
 impl ErrorTrace {
     pub fn message(mut self, message: impl Into<String>) -> Self {
         self.message = Some(message.into());
@@ -76,6 +81,7 @@ impl ErrorTrace {
 }
 
 #[derive(Debug, Serialize, thiserror::Error)]
+#[cfg_attr(feature = "python", pyo3::pyclass(module = "zakc"))]
 #[error("{code}{}: {error}{}", position(.span), trace_text(.sources))]
 pub struct CompilerError {
     pub code: ErrorCode,
@@ -86,9 +92,11 @@ pub struct CompilerError {
     #[source]
     pub error: ErrorType,
 }
+
 fn display_error<S: Serializer>(error: &ErrorType, serializer: S) -> Result<S::Ok, S::Error> {
     serializer.collect_str(error)
 }
+
 impl CompilerError {
     #[track_caller]
     pub fn new(code: ErrorCode, span: Option<Span>, message: impl Into<String>) -> Self {
@@ -99,25 +107,30 @@ impl CompilerError {
             error: ErrorType::Message(message.into()),
         }
     }
+
     pub fn source(mut self, trace: ErrorTrace) -> Self {
         self.sources.push(trace);
         self
     }
+
     /// Keep the innermost Zak location when outer stages attach context.
     pub fn at(mut self, span: Span) -> Self {
         self.span.get_or_insert(span);
         self
     }
+
     pub fn code(mut self, code: ErrorCode) -> Self {
         self.code = code;
         self
     }
 }
+
 fn position(span: &Option<Span>) -> String {
     span.map_or_else(String::new, |span| {
         format!(" at {}:{}", span.line, span.col)
     })
 }
+
 fn trace_text(sources: &[ErrorTrace]) -> String {
     sources
         .iter()
@@ -125,11 +138,13 @@ fn trace_text(sources: &[ErrorTrace]) -> String {
             let message = trace
                 .message
                 .as_ref()
-                .map_or_else(String::new, |text| format!(" — {text}"));
+                .map_or_else(String::new, |text| format!(" - {text}"));
+
             format!("\n  at {}{message}", trace.location)
         })
         .collect()
 }
+
 impl From<std::io::Error> for CompilerError {
     #[track_caller]
     fn from(error: std::io::Error) -> Self {
@@ -141,6 +156,7 @@ impl From<std::io::Error> for CompilerError {
         }
     }
 }
+
 impl From<serde_json::Error> for CompilerError {
     #[track_caller]
     fn from(error: serde_json::Error) -> Self {
@@ -157,6 +173,7 @@ pub struct TraceCtx {
     pub message: String,
     pub code: Option<ErrorCode>,
 }
+
 impl From<&str> for TraceCtx {
     fn from(message: &str) -> Self {
         Self {
@@ -165,6 +182,7 @@ impl From<&str> for TraceCtx {
         }
     }
 }
+
 impl From<String> for TraceCtx {
     fn from(message: String) -> Self {
         Self {
@@ -183,13 +201,16 @@ impl<M: Into<String>> From<(M, ErrorCode)> for TraceCtx {
 }
 pub trait ErrorContext<T>: Sized {
     fn trace_at(self, trace: ErrorTrace) -> Result<T, CompilerError>;
+
     #[track_caller]
     fn trace(self) -> Result<T, CompilerError> {
         self.trace_at(ErrorTrace::default())
     }
+
     #[track_caller]
     fn trace_ctx(self, context: impl Into<TraceCtx>) -> Result<T, CompilerError> {
         let context = context.into();
+
         self.trace_at(ErrorTrace::default().message(context.message))
             .map_err(|error| {
                 if let Some(code) = context.code {
@@ -199,11 +220,13 @@ pub trait ErrorContext<T>: Sized {
                 }
             })
     }
+
     #[track_caller]
     fn at(self, span: Span) -> Result<T, CompilerError> {
         self.trace().map_err(|error| error.at(span))
     }
 }
+
 impl<T> ErrorContext<T> for Option<T> {
     fn trace_at(self, trace: ErrorTrace) -> Result<T, CompilerError> {
         self.ok_or_else(|| CompilerError {
@@ -214,6 +237,7 @@ impl<T> ErrorContext<T> for Option<T> {
         })
     }
 }
+
 impl<T, E: Into<CompilerError>> ErrorContext<T> for Result<T, E> {
     fn trace_at(self, trace: ErrorTrace) -> Result<T, CompilerError> {
         self.map_err(|error| error.into().source(trace))
