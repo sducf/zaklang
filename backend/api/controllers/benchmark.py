@@ -213,13 +213,23 @@ def execute_run_in_background(
         )
         _persist_run_result(db, run, result)
     except Exception:
-        db.rollback()
-        run = db.get(BenchmarkRun, run_id)
-        if run is not None:
-            run.status = RunStatus.ERROR.value
-            run.completed_at = datetime.now(timezone.utc)
-            db.commit()
         logger.exception("Background benchmark run %s failed", run_id)
+        try:
+            db.rollback()
+            run = db.get(BenchmarkRun, run_id)
+            if run is not None:
+                run.status = RunStatus.ERROR.value
+                run.completed_at = datetime.now(timezone.utc)
+                db.commit()
+        except Exception:
+            logger.exception("Could not mark run %s as error", run_id)
+            try:
+                db.rollback()
+            except Exception:
+                logger.exception(
+                    "Could not roll back after marking run %s as error",
+                    run_id,
+                )
     finally:
         db.close()
 
