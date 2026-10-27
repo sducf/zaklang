@@ -1,0 +1,1 @@
+@solve(text:S)I{m:{S:I}={};st:=0;b:=0;~i:0..#text{c:=text[i];?c@m&m[c]>=st{st=m[c]+1}m[c]=i;b=max(b,i-st+1)}^b}

@@ -1,0 +1,1 @@
+@solve(path:S)S{st:[S]=[];~p:spl(path,"/"){?p==""|p=="."{>}?p==".."{?#st>0{pop(st)}>}st<<p}^"/"+jn(st,"/")}
