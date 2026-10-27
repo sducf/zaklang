@@ -1,0 +1,42 @@
+[
+  {
+    "inputs": ["abcabcbb"],
+    "expected": 3
+  },
+  {
+    "inputs": ["a"],
+    "expected": 1
+  },
+  {
+    "inputs": ["bbbbb"],
+    "expected": 1
+  },
+  {
+    "inputs": ["pwwkew"],
+    "expected": 3
+  },
+  {
+    "inputs": ["abcdef"],
+    "expected": 6
+  },
+  {
+    "inputs": ["abba"],
+    "expected": 2
+  },
+  {
+    "inputs": ["dvdf"],
+    "expected": 3
+  },
+  {
+    "inputs": ["tmmzuxt"],
+    "expected": 5
+  },
+  {
+    "inputs": ["aA"],
+    "expected": 2
+  },
+  {
+    "inputs": [""],
+    "expected": 0
+  }
+]

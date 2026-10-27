@@ -1,0 +1,14 @@
+{
+  "id": "game_of_life_step",
+  "title": "Game Of Life Step",
+  "category": "simulation",
+  "prompt": "Given a grid as an array of rows, where every row has the same length and every cell is 1 for alive or 0 for dead, return the grid after one step of Conway's Game of Life. Each cell has up to eight neighbors, including diagonals, and cells outside the grid count as dead. A live cell with two or three live neighbors stays alive and any other live cell dies. A dead cell with exactly three live neighbors becomes alive. All cells change at the same time, based only on the grid before the step. An empty grid stays empty.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "grid",
+      "type": "integer[][]"
+    }
+  ],
+  "outputType": "integer[][]"
+}

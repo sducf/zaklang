@@ -1,0 +1,14 @@
+{
+  "id": "number_of_islands",
+  "title": "Number Of Islands",
+  "category": "arrays",
+  "prompt": "Given a grid as an array of rows, where every row has the same length and every cell is 1 for land or 0 for water, return the number of islands. An island is a group of land cells connected to each other through their up, down, left, and right neighbors. Diagonal neighbors are not connected. An empty grid has no islands.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "grid",
+      "type": "integer[][]"
+    }
+  ],
+  "outputType": "integer"
+}

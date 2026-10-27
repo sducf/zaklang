@@ -1,0 +1,38 @@
+[
+  {
+    "inputs": ["/home/"],
+    "expected": "/home"
+  },
+  {
+    "inputs": ["/"],
+    "expected": "/"
+  },
+  {
+    "inputs": ["/../"],
+    "expected": "/"
+  },
+  {
+    "inputs": ["/home//foo/"],
+    "expected": "/home/foo"
+  },
+  {
+    "inputs": ["/a/./b/../../c/"],
+    "expected": "/c"
+  },
+  {
+    "inputs": ["/a/../../b/../c//.//"],
+    "expected": "/c"
+  },
+  {
+    "inputs": ["/.../a/../b"],
+    "expected": "/.../b"
+  },
+  {
+    "inputs": ["/x/y/z/.."],
+    "expected": "/x/y"
+  },
+  {
+    "inputs": ["/a//b////c/d//././/.."],
+    "expected": "/a/b/c"
+  }
+]

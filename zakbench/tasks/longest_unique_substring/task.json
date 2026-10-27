@@ -1,0 +1,14 @@
+{
+  "id": "longest_unique_substring",
+  "title": "Longest Unique Substring",
+  "category": "strings",
+  "prompt": "Given a string, return the length of the longest run of consecutive characters in which no character appears more than once. Uppercase and lowercase letters are different characters. An empty string gives 0.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "outputType": "integer"
+}

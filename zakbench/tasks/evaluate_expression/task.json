@@ -1,0 +1,14 @@
+{
+  "id": "evaluate_expression",
+  "title": "Evaluate Expression",
+  "category": "parsing",
+  "prompt": "Given a non-empty arithmetic expression as a string of non-negative whole numbers joined by the operators plus, minus, and times, written as the characters +, -, and *, return its integer value. There are no spaces and no parentheses, and every operator sits between two numbers. Multiplication is done before addition and subtraction, and otherwise the expression is evaluated from left to right.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "expr",
+      "type": "string"
+    }
+  ],
+  "outputType": "integer"
+}
