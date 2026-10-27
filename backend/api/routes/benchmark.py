@@ -2,7 +2,8 @@
 
 from typing import NoReturn
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, status
+from sqlalchemy.orm import Session
 
 from api.schemas.benchmark import (
     CompileRequest,
@@ -16,10 +17,14 @@ from api.schemas.benchmark import (
 from api.controllers.auth import get_current_user_controller
 from api.controllers.benchmark import (
     compile_controller,
+    create_queued_run,
+    execute_run_in_background,
     get_task_controller,
     list_tasks_controller,
+    run_to_response,
 )
 from database.models import User
+from database.db import get_db
 
 router = APIRouter(tags=["benchmark"])
 
@@ -55,9 +60,22 @@ def compile_source(payload: CompileRequest) -> CompileResponse:
 )
 def create_run(
     payload: RunCreateRequest,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user_controller),
+    db: Session = Depends(get_db),
 ) -> RunResponse:
-    _not_implemented()
+    get_task_controller(payload.task_id)
+    run = create_queued_run(db, user, payload.task_id, payload.language)
+    db.commit()
+    db.refresh(run)
+    background_tasks.add_task(
+        execute_run_in_background,
+        run.id,
+        payload.task_id,
+        payload.language,
+        payload.source,
+    )
+    return run_to_response(run)
 
 
 @router.get("/runs/{run_id}", response_model=RunResponse)

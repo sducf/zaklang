@@ -203,6 +203,37 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual(item.language, benchmark.Language.PYTHON)
         self.assertEqual(item.attempts_used, 1)
 
+    def test_create_run_queues_and_schedules_background_work(self):
+        class BackgroundTasks:
+            def __init__(self):
+                self.calls = []
+
+            def add_task(self, function, *args):
+                self.calls.append((function, args))
+
+        background_tasks = BackgroundTasks()
+        payload = benchmark_routes.RunCreateRequest(
+            task_id="array_sum",
+            language=benchmark.Language.PYTHON,
+            source="def solve(nums): return sum(nums)",
+        )
+
+        response = benchmark_routes.create_run(
+            payload,
+            background_tasks,
+            self.user,
+            self.session,
+        )
+
+        self.assertEqual(response.status, benchmark.RunStatus.QUEUED)
+        self.assertEqual(response.attempts, [])
+        self.assertEqual(response.model_name, "Llama 3.1 8B Instruct")
+        self.assertEqual(len(background_tasks.calls), 1)
+        function, args = background_tasks.calls[0]
+        self.assertIs(function, benchmark.execute_run_in_background)
+        self.assertEqual(args[0], response.id)
+        self.assertEqual(args[1:], ("array_sum", benchmark.Language.PYTHON, payload.source))
+
 
 if __name__ == "__main__":
     unittest.main()

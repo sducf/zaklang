@@ -1,6 +1,8 @@
 """Application behavior for public benchmark metadata."""
 
 import json
+import logging
+from datetime import datetime, timezone
 from pathlib import Path
 import re
 import sys
@@ -22,12 +24,18 @@ from api.schemas.benchmark import (
     TaskResponse,
 )
 from database.models import Attempt, BenchmarkRun, Evaluation, User
+from database.db import SessionLocal
 
 
 TASK_ID = re.compile(TASK_ID_PATTERN)
 TASKS_ROOT = Path(__file__).resolve().parents[3] / "zakbench" / "tasks"
 REPOSITORY_ROOT = TASKS_ROOT.parent.parent
 MODEL_NAME = "Llama 3.1 8B Instruct"
+PROMPT_VERSION = "1"
+ZAK_SPEC_VERSION = "0.1"
+SEED = 0
+MAX_ATTEMPTS = 3
+logger = logging.getLogger(__name__)
 
 
 def _read_task(task_id: str, task_file: Path) -> TaskResponse:
@@ -170,6 +178,96 @@ def create_queued_run(
     db.add(run)
     db.flush()
     return run
+
+
+def execute_run_in_background(
+    run_id: int,
+    task_id: str,
+    language: Language,
+    source: str | None,
+) -> None:
+    """Execute a run using a fresh database session after the response."""
+    db = SessionLocal()
+    try:
+        run = db.get(BenchmarkRun, run_id)
+        if run is None:
+            logger.error("Background run %s no longer exists", run_id)
+            return
+
+        run.status = RunStatus.RUNNING.value
+        db.commit()
+
+        if str(REPOSITORY_ROOT) not in sys.path:
+            sys.path.insert(0, str(REPOSITORY_ROOT))
+        from zakbench.runners.run import run_single
+
+        result = run_single(
+            task_id,
+            language.value,
+            MODEL_NAME,
+            ZAK_SPEC_VERSION if language is Language.ZAK else None,
+            PROMPT_VERSION,
+            SEED,
+            max_attempts=MAX_ATTEMPTS,
+            source=source,
+        )
+        _persist_run_result(db, run, result)
+    except Exception:
+        db.rollback()
+        run = db.get(BenchmarkRun, run_id)
+        if run is not None:
+            run.status = RunStatus.ERROR.value
+            run.completed_at = datetime.now(timezone.utc)
+            db.commit()
+        logger.exception("Background benchmark run %s failed", run_id)
+    finally:
+        db.close()
+
+
+def _persist_run_result(db: Session, run: BenchmarkRun, result: Any) -> None:
+    for attempt_data in result.attempts:
+        attempt = Attempt(
+            run_id=run.id,
+            attempt_number=attempt_data["number"],
+            prompt_text=json.dumps(attempt_data["prompt"]),
+            generated_code=attempt_data["code"] or "",
+            prompt_tokens=attempt_data["prompt_tokens"],
+            completion_tokens=attempt_data["completion_tokens"],
+            total_tokens=(
+                (attempt_data["prompt_tokens"] or 0)
+                + (attempt_data["completion_tokens"] or 0)
+            ),
+            finish_reason=attempt_data["finish_reason"],
+            latency_ms=attempt_data["latency_ms"],
+        )
+        db.add(attempt)
+        db.flush()
+        db.add(
+            Evaluation(
+                attempt_id=attempt.id,
+                compile_success=attempt_data["compile_ok"],
+                compiler_output=json.dumps(attempt_data["compile_errors"]),
+                transpiled_code=attempt_data["transpiled_python"],
+                tests_passed=attempt_data["tests_passed"],
+                tests_total=attempt_data["tests_total"],
+                correct=attempt_data["exec_outcome"] == "pass",
+                exec_outcome=attempt_data["exec_outcome"],
+            )
+        )
+
+    run.status = _run_status_for_outcome(result.exec_outcome)
+    run.completed_at = datetime.now(timezone.utc)
+    db.commit()
+
+
+def _run_status_for_outcome(outcome: str) -> str:
+    if outcome == "pass":
+        return RunStatus.PASSED.value
+    if outcome == "timeout":
+        return RunStatus.TIMEOUT.value
+    if outcome == "fail":
+        return RunStatus.FAILED.value
+    return RunStatus.ERROR.value
 
 
 def run_to_response(run: BenchmarkRun) -> RunResponse:
