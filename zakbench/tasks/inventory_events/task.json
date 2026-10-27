@@ -1,0 +1,14 @@
+{
+  "id": "inventory_events",
+  "title": "Inventory Events",
+  "category": "simulation",
+  "prompt": "Simulate a store inventory that starts empty. Each event is a string made of an action word, an item name, and a positive whole number quantity, separated by single spaces. The action add increases the stock of that item by the quantity. The action remove decreases it by the quantity, but stock never goes below zero, so removing more than is in stock leaves zero. Item names are lowercase words. Given the events in order, return a map from each item with a stock greater than zero to its final stock.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "events",
+      "type": "string[]"
+    }
+  ],
+  "outputType": "map<string, integer>"
+}

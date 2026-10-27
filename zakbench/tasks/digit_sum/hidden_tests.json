@@ -1,0 +1,34 @@
+[
+  {
+    "inputs": [123],
+    "expected": 6
+  },
+  {
+    "inputs": [-45],
+    "expected": 9
+  },
+  {
+    "inputs": [9],
+    "expected": 9
+  },
+  {
+    "inputs": [1000],
+    "expected": 1
+  },
+  {
+    "inputs": [99999],
+    "expected": 45
+  },
+  {
+    "inputs": [-7],
+    "expected": 7
+  },
+  {
+    "inputs": [1010101],
+    "expected": 4
+  },
+  {
+    "inputs": [0],
+    "expected": 0
+  }
+]

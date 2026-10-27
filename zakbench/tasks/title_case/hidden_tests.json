@@ -1,0 +1,30 @@
+[
+  {
+    "inputs": ["hello world"],
+    "expected": "Hello World"
+  },
+  {
+    "inputs": ["zAK"],
+    "expected": "Zak"
+  },
+  {
+    "inputs": ["a b c"],
+    "expected": "A B C"
+  },
+  {
+    "inputs": ["PYTHON IS LONG"],
+    "expected": "Python Is Long"
+  },
+  {
+    "inputs": ["already Title Case"],
+    "expected": "Already Title Case"
+  },
+  {
+    "inputs": ["x"],
+    "expected": "X"
+  },
+  {
+    "inputs": [""],
+    "expected": ""
+  }
+]

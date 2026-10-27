@@ -1,0 +1,1 @@
+@solve(text:S)S{r:="";i:=0;~i<#text{j:=i;~j<#text&text[j]==text[i]{j+=1}r+=text[i]+S(j-i);i=j}^r}

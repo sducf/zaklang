@@ -1,0 +1,14 @@
+{
+  "id": "remove_adjacent_pairs",
+  "title": "Remove Adjacent Pairs",
+  "category": "stacks_queues",
+  "prompt": "Given a string, repeatedly remove any two neighboring characters that are the same until no such pair remains. Removing a pair can bring two equal characters next to each other, and they are removed too. Return the final string, which may be empty.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "outputType": "string"
+}

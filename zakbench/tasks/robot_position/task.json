@@ -1,0 +1,14 @@
+{
+  "id": "robot_position",
+  "title": "Robot Position",
+  "category": "simulation",
+  "prompt": "A robot starts at x equal to 0 and y equal to 0. It follows a string of moves, one character per move. U increases y by 1, D decreases y by 1, R increases x by 1, and L decreases x by 1. The string contains no other characters. Return the final position as an array of two integers, x first and then y.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "moves",
+      "type": "string"
+    }
+  ],
+  "outputType": "integer[]"
+}

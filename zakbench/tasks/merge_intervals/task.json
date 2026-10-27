@@ -1,0 +1,14 @@
+{
+  "id": "merge_intervals",
+  "title": "Merge Intervals",
+  "category": "sorting_searching",
+  "prompt": "Given an array of intervals in any order, where each interval is an array of two integers, a start and an end with the start no greater than the end, merge every group of overlapping intervals into one interval that covers them all. Intervals that only touch at an endpoint also overlap. Return the merged intervals sorted by start, each as an array of start and end.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "intervals",
+      "type": "integer[][]"
+    }
+  ],
+  "outputType": "integer[][]"
+}

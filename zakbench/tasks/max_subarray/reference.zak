@@ -1,0 +1,1 @@
+@solve(nums:[I])I{?#nums==0{^0}b:=nums[0];c:=0;~n:nums{c=max(n,c+n);b=max(b,c)}^b}

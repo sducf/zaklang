@@ -1,0 +1,42 @@
+[
+  {
+    "inputs": ["2+3*4"],
+    "expected": 14
+  },
+  {
+    "inputs": ["5"],
+    "expected": 5
+  },
+  {
+    "inputs": ["10-2*3-4"],
+    "expected": 0
+  },
+  {
+    "inputs": ["2*3*4"],
+    "expected": 24
+  },
+  {
+    "inputs": ["1-1-1"],
+    "expected": -1
+  },
+  {
+    "inputs": ["0*100+7"],
+    "expected": 7
+  },
+  {
+    "inputs": ["12*10-121"],
+    "expected": -1
+  },
+  {
+    "inputs": ["6-7*8+9"],
+    "expected": -41
+  },
+  {
+    "inputs": ["100"],
+    "expected": 100
+  },
+  {
+    "inputs": ["3+4*0-2*2"],
+    "expected": -1
+  }
+]

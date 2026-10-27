@@ -1,0 +1,14 @@
+{
+  "id": "max_nesting_depth",
+  "title": "Max Nesting Depth",
+  "category": "stacks_queues",
+  "prompt": "Given a string that may contain any characters, where the round parentheses are guaranteed to be balanced, return the greatest number of parentheses that are open at the same time. A string with no parentheses has a depth of 0.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "outputType": "integer"
+}

@@ -1,0 +1,18 @@
+{
+  "id": "edit_distance",
+  "title": "Edit Distance",
+  "category": "dynamic_programming",
+  "prompt": "Given two strings, return the smallest number of single-character edits needed to turn the first string into the second. An edit inserts one character, deletes one character, or replaces one character with a different one.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "a",
+      "type": "string"
+    },
+    {
+      "name": "b",
+      "type": "string"
+    }
+  ],
+  "outputType": "integer"
+}

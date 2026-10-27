@@ -1,0 +1,18 @@
+{
+  "id": "greatest_common_divisor",
+  "title": "Greatest Common Divisor",
+  "category": "math",
+  "prompt": "Given two integers, which may be negative or zero, return the largest positive integer that divides both of them evenly. If both integers are zero, return 0.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "a",
+      "type": "integer"
+    },
+    {
+      "name": "b",
+      "type": "integer"
+    }
+  ],
+  "outputType": "integer"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "to_binary",
+  "title": "To Binary",
+  "category": "math",
+  "prompt": "Given a non-negative integer, return its base 2 representation as a string of the characters 0 and 1, with no leading zeros. Zero is written as a single 0.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "n",
+      "type": "integer"
+    }
+  ],
+  "outputType": "string"
+}

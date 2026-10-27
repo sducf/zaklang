@@ -1,0 +1,34 @@
+[
+  {
+    "inputs": [["flower", "flow", "flight"]],
+    "expected": "fl"
+  },
+  {
+    "inputs": [["alone"]],
+    "expected": "alone"
+  },
+  {
+    "inputs": [["dog", "racecar", "car"]],
+    "expected": ""
+  },
+  {
+    "inputs": [["same", "same", "same"]],
+    "expected": "same"
+  },
+  {
+    "inputs": [["prefix", "pre", "prepare"]],
+    "expected": "pre"
+  },
+  {
+    "inputs": [["", "abc"]],
+    "expected": ""
+  },
+  {
+    "inputs": [["abc", "abcd", "ab"]],
+    "expected": "ab"
+  },
+  {
+    "inputs": [[]],
+    "expected": ""
+  }
+]

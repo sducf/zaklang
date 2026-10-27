@@ -1,0 +1,34 @@
+[
+  {
+    "inputs": [2024],
+    "expected": true
+  },
+  {
+    "inputs": [2023],
+    "expected": false
+  },
+  {
+    "inputs": [1900],
+    "expected": false
+  },
+  {
+    "inputs": [2000],
+    "expected": true
+  },
+  {
+    "inputs": [2100],
+    "expected": false
+  },
+  {
+    "inputs": [4],
+    "expected": true
+  },
+  {
+    "inputs": [1],
+    "expected": false
+  },
+  {
+    "inputs": [2400],
+    "expected": true
+  }
+]

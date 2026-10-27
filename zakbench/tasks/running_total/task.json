@@ -1,0 +1,14 @@
+{
+  "id": "running_total",
+  "title": "Running Total",
+  "category": "arrays",
+  "prompt": "Given an array of integers, return a new array of the same length where each position holds the sum of every element from the start of the input up to and including that position.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "nums",
+      "type": "integer[]"
+    }
+  ],
+  "outputType": "integer[]"
+}

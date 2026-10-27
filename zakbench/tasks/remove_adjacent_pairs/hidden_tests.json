@@ -1,0 +1,38 @@
+[
+  {
+    "inputs": ["abbaca"],
+    "expected": "ca"
+  },
+  {
+    "inputs": ["a"],
+    "expected": "a"
+  },
+  {
+    "inputs": ["aa"],
+    "expected": ""
+  },
+  {
+    "inputs": ["abba"],
+    "expected": ""
+  },
+  {
+    "inputs": ["abc"],
+    "expected": "abc"
+  },
+  {
+    "inputs": ["aaa"],
+    "expected": "a"
+  },
+  {
+    "inputs": ["azxxzy"],
+    "expected": "ay"
+  },
+  {
+    "inputs": ["aabbccd"],
+    "expected": "d"
+  },
+  {
+    "inputs": [""],
+    "expected": ""
+  }
+]

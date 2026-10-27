@@ -1,0 +1,30 @@
+[
+  {
+    "inputs": [["1:30", "0:45"]],
+    "expected": 135
+  },
+  {
+    "inputs": [["0:00"]],
+    "expected": 0
+  },
+  {
+    "inputs": [["10:05"]],
+    "expected": 605
+  },
+  {
+    "inputs": [["0:59", "0:01"]],
+    "expected": 60
+  },
+  {
+    "inputs": [["100:00", "2:30", "0:15"]],
+    "expected": 6165
+  },
+  {
+    "inputs": [["3:07"]],
+    "expected": 187
+  },
+  {
+    "inputs": [[]],
+    "expected": 0
+  }
+]

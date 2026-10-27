@@ -1,0 +1,1 @@
+@solve(grid:[[I]])I{h:=#grid;?h==0{^0}w:=#grid[0];s:[[B]]=[];~g:grid{row:[B]=[];~x:g{row<<F}s<<row}n:=0;d:=[[1,0],[-1,0],[0,1],[0,-1]];~i:0..h{~j:0..w{?grid[i][j]==1&!s[i][j]{n+=1;s[i][j]=T;st:[I]=[i*w+j];~#st>0{p:=pop(st);~e:d{a:=p/w+e[0];b:=p%w+e[1];?a>=0&a<h&b>=0&b<w{?grid[a][b]==1&!s[a][b]{s[a][b]=T;st<<a*w+b}}}}}}}^n}

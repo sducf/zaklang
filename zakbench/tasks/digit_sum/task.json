@@ -1,0 +1,14 @@
+{
+  "id": "digit_sum",
+  "title": "Digit Sum",
+  "category": "math",
+  "prompt": "Given an integer, return the sum of its decimal digits. A minus sign is not a digit, so a negative number has the same digit sum as its absolute value.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "n",
+      "type": "integer"
+    }
+  ],
+  "outputType": "integer"
+}

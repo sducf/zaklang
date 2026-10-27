@@ -1,0 +1,30 @@
+[
+  {
+    "inputs": ["UR"],
+    "expected": [1, 1]
+  },
+  {
+    "inputs": ["UDLR"],
+    "expected": [0, 0]
+  },
+  {
+    "inputs": ["LLL"],
+    "expected": [-3, 0]
+  },
+  {
+    "inputs": ["DDDRU"],
+    "expected": [1, -2]
+  },
+  {
+    "inputs": ["RRRRUUUDLL"],
+    "expected": [2, 2]
+  },
+  {
+    "inputs": ["D"],
+    "expected": [0, -1]
+  },
+  {
+    "inputs": [""],
+    "expected": [0, 0]
+  }
+]

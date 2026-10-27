@@ -1,0 +1,30 @@
+[
+  {
+    "inputs": ["hello world"],
+    "expected": "world hello"
+  },
+  {
+    "inputs": ["one"],
+    "expected": "one"
+  },
+  {
+    "inputs": ["a b c d"],
+    "expected": "d c b a"
+  },
+  {
+    "inputs": ["the cat sat on the mat"],
+    "expected": "mat the on sat cat the"
+  },
+  {
+    "inputs": ["Zak beats Python"],
+    "expected": "Python beats Zak"
+  },
+  {
+    "inputs": ["x y"],
+    "expected": "y x"
+  },
+  {
+    "inputs": [""],
+    "expected": ""
+  }
+]

@@ -1,0 +1,14 @@
+{
+  "id": "evaluate_rpn",
+  "title": "Evaluate Reverse Polish Notation",
+  "category": "stacks_queues",
+  "prompt": "Given an expression in reverse Polish notation as an array of tokens, return its integer value. Each token is either a whole number, which may be negative, or one of the operators plus, minus, and times written as the single characters +, -, and *. An operator applies to the two values produced just before it, with the earlier value on the left. The expression is always valid and has at least one token.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "tokens",
+      "type": "string[]"
+    }
+  ],
+  "outputType": "integer"
+}

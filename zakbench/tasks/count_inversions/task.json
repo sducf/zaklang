@@ -1,0 +1,14 @@
+{
+  "id": "count_inversions",
+  "title": "Count Inversions",
+  "category": "sorting_searching",
+  "prompt": "Given an array of integers, return the number of pairs of positions where the earlier position holds a strictly larger value than the later position.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "nums",
+      "type": "integer[]"
+    }
+  ],
+  "outputType": "integer"
+}

@@ -1,0 +1,1 @@
+@solve(grid:[[I]])[[I]]{h:=#grid;r:[[I]]=[];~i:0..h{w:=#grid[i];row:[I]=[];~j:0..w{n:=0;~a:i-1..i+2{~b:j-1..j+2{?a>=0&a<h&b>=0&b<w&!(a==i&b==j){n+=grid[a][b]}}}row<<(n==3|grid[i][j]==1&n==2?1:0)}r<<row}^r}

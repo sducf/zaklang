@@ -1,0 +1,14 @@
+{
+  "id": "simplify_path",
+  "title": "Simplify Path",
+  "category": "stacks_queues",
+  "prompt": "Given an absolute file system path that starts with a slash, return its simplest form. Parts of the path are separated by one or more slashes. A part made of a single dot means the current folder and is dropped. A part made of two dots moves up to the parent folder, and at the top folder it stays there. Any other part, including three or more dots, is a folder name. The result starts with a single slash, separates folder names with single slashes, and has no slash at the end unless it is only the top folder.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "path",
+      "type": "string"
+    }
+  ],
+  "outputType": "string"
+}

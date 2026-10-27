@@ -1,0 +1,34 @@
+[
+  {
+    "inputs": [1],
+    "expected": "1"
+  },
+  {
+    "inputs": [2],
+    "expected": "10"
+  },
+  {
+    "inputs": [5],
+    "expected": "101"
+  },
+  {
+    "inputs": [255],
+    "expected": "11111111"
+  },
+  {
+    "inputs": [256],
+    "expected": "100000000"
+  },
+  {
+    "inputs": [10],
+    "expected": "1010"
+  },
+  {
+    "inputs": [1023],
+    "expected": "1111111111"
+  },
+  {
+    "inputs": [0],
+    "expected": "0"
+  }
+]

@@ -1,0 +1,1 @@
+@solve(tokens:[S])I{st:[I]=[];~t:tokens{?t=="+"|t=="-"|t=="*"{b:=pop(st);a:=pop(st);?t=="+"{st<<a+b}:?t=="-"{st<<a-b}:{st<<a*b}}:{st<<I(t)}}^st[0]}
