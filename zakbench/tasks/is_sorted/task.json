@@ -1,0 +1,14 @@
+{
+  "id": "is_sorted",
+  "title": "Is Sorted",
+  "category": "sorting_searching",
+  "prompt": "Given an array of integers, return true if every element is greater than or equal to the element before it, and false otherwise. An empty array and an array with one element both count as sorted.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "nums",
+      "type": "integer[]"
+    }
+  ],
+  "outputType": "boolean"
+}

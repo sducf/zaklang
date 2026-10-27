@@ -1,0 +1,1 @@
+@solve(nums:[I])B{~i:1..#nums{?nums[i]<nums[i-1]{^F}}^T}

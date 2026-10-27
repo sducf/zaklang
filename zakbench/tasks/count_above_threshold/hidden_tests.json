@@ -1,0 +1,30 @@
+[
+  {
+    "inputs": [{"ann": 90, "bob": 70, "cy": 85}, 80],
+    "expected": 2
+  },
+  {
+    "inputs": [{"x": 50}, 50],
+    "expected": 1
+  },
+  {
+    "inputs": [{"a": -5, "b": -10}, -7],
+    "expected": 1
+  },
+  {
+    "inputs": [{"a": 1, "b": 2, "c": 3}, 0],
+    "expected": 3
+  },
+  {
+    "inputs": [{"a": 1, "b": 2}, 3],
+    "expected": 0
+  },
+  {
+    "inputs": [{"p": 100, "q": 99, "r": 100, "s": 101}, 100],
+    "expected": 3
+  },
+  {
+    "inputs": [{}, 50],
+    "expected": 0
+  }
+]

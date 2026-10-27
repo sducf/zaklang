@@ -1,0 +1,14 @@
+{
+  "id": "climb_stairs",
+  "title": "Climb Stairs",
+  "category": "dynamic_programming",
+  "prompt": "You climb a staircase with a given number of steps, taking either 1 or 2 steps at a time. Return the number of different ordered sequences of moves that reach exactly the top. A staircase with 0 steps can be climbed in exactly 1 way, by not moving.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "n",
+      "type": "integer"
+    }
+  ],
+  "outputType": "integer"
+}
