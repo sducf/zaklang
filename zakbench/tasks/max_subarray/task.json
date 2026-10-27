@@ -1,0 +1,14 @@
+{
+  "id": "max_subarray",
+  "title": "Maximum Subarray",
+  "category": "dynamic_programming",
+  "prompt": "Given an array of integers, return the largest sum of any run of one or more consecutive elements. If every element is negative, the answer is the largest single element. If the array is empty, return 0.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "nums",
+      "type": "integer[]"
+    }
+  ],
+  "outputType": "integer"
+}

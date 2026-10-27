@@ -1,0 +1,1 @@
+@solve(nums:[I])I{c:=0;~i:0..#nums{~j:i+1..#nums{?nums[i]>nums[j]{c+=1}}}^c}

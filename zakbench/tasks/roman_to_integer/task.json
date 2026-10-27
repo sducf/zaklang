@@ -1,0 +1,14 @@
+{
+  "id": "roman_to_integer",
+  "title": "Roman To Integer",
+  "category": "parsing",
+  "prompt": "Given a valid Roman numeral in uppercase letters for a number from 1 to 3999, return its integer value. The letters I, V, X, L, C, D, and M stand for 1, 5, 10, 50, 100, 500, and 1000. Values are added from left to right, except that a letter placed directly before a letter of larger value is subtracted instead of added.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "numeral",
+      "type": "string"
+    }
+  ],
+  "outputType": "integer"
+}

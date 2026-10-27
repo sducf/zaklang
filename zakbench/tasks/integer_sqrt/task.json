@@ -1,0 +1,14 @@
+{
+  "id": "integer_sqrt",
+  "title": "Integer Square Root",
+  "category": "sorting_searching",
+  "prompt": "Given a non-negative integer n, return the largest non-negative integer whose square is less than or equal to n.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "n",
+      "type": "integer"
+    }
+  ],
+  "outputType": "integer"
+}
