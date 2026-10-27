@@ -1,0 +1,38 @@
+[
+  {
+    "inputs": ["III"],
+    "expected": 3
+  },
+  {
+    "inputs": ["IV"],
+    "expected": 4
+  },
+  {
+    "inputs": ["IX"],
+    "expected": 9
+  },
+  {
+    "inputs": ["LVIII"],
+    "expected": 58
+  },
+  {
+    "inputs": ["MCMXCIV"],
+    "expected": 1994
+  },
+  {
+    "inputs": ["MMMCMXCIX"],
+    "expected": 3999
+  },
+  {
+    "inputs": ["XLII"],
+    "expected": 42
+  },
+  {
+    "inputs": ["CDXLIV"],
+    "expected": 444
+  },
+  {
+    "inputs": ["I"],
+    "expected": 1
+  }
+]

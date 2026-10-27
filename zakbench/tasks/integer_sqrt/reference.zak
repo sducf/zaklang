@@ -1,0 +1,1 @@
+@solve(n:I)I{l:=0;h:=n;~l<h{m:=(l+h+1)/2;?m*m<=n{l=m}:{h=m-1}}^l}

@@ -1,0 +1,1 @@
+@solve(numeral:S)I{v:={"I":1,"V":5,"X":10,"L":50,"C":100,"D":500,"M":1000};t:=0;~i:0..#numeral{x:=v[numeral[i]];?i+1<#numeral&x<v[numeral[i+1]]{t-=x}:{t+=x}}^t}

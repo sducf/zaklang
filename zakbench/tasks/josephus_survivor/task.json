@@ -1,0 +1,18 @@
+{
+  "id": "josephus_survivor",
+  "title": "Josephus Survivor",
+  "category": "stacks_queues",
+  "prompt": "People numbered 1 to n stand in a circle in order. Starting the count at person 1, count k people around the circle and remove the k-th person counted. The next count starts with the person right after the one removed, skipping anyone already removed. Repeat until one person is left and return that person's number. Both n and k are at least 1.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "n",
+      "type": "integer"
+    },
+    {
+      "name": "k",
+      "type": "integer"
+    }
+  ],
+  "outputType": "integer"
+}
