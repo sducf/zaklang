@@ -1,0 +1,14 @@
+{
+  "id": "run_length_encode",
+  "title": "Run Length Encode",
+  "category": "strings",
+  "prompt": "Given a string, replace every maximal run of the same character with that character followed by the length of the run written in decimal. Return the encoded string. Uppercase and lowercase letters are different characters, and spaces are encoded like any other character. An empty string encodes to an empty string.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "outputType": "string"
+}

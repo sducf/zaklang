@@ -1,0 +1,14 @@
+{
+  "id": "longest_common_prefix",
+  "title": "Longest Common Prefix",
+  "category": "strings",
+  "prompt": "Given an array of strings, return the longest string that every one of them starts with. If the array is empty or the strings share no common start, return an empty string.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "words",
+      "type": "string[]"
+    }
+  ],
+  "outputType": "string"
+}

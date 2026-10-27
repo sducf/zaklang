@@ -1,0 +1,1 @@
+@solve(text:S)S{?text==""{^""}m:{S:I}={};~w:spl(text," "){?w@m{m[w]+=1}:{m[w]=1}}b:="";c:=0;~k,v:m{?v>c|v==c&k<b{b=k;c=v}}^b}

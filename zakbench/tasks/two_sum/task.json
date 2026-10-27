@@ -1,0 +1,18 @@
+{
+  "id": "two_sum",
+  "title": "Two Sum",
+  "category": "maps",
+  "prompt": "Given an array of integers and a target integer, find two different positions whose values add up to the target. Return the two positions, counting from 0, as an array with the smaller position first. If more than one pair works, choose the pair whose larger position is smallest, and if that still leaves a tie, the pair whose smaller position is smallest. If no pair works, return an empty array.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "nums",
+      "type": "integer[]"
+    },
+    {
+      "name": "target",
+      "type": "integer"
+    }
+  ],
+  "outputType": "integer[]"
+}

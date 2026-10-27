@@ -1,0 +1,14 @@
+{
+  "id": "most_frequent_word",
+  "title": "Most Frequent Word",
+  "category": "maps",
+  "prompt": "Given a string of lowercase words separated by single spaces, with no spaces at the start or end, return the word that appears the most times. If several words tie for the most appearances, return the one that comes first in alphabetical order. An empty string has no words, so return an empty string.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "text",
+      "type": "string"
+    }
+  ],
+  "outputType": "string"
+}

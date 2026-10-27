@@ -1,0 +1,1 @@
+@solve(words:[S])S{?#words==0{^""}p:=words[0];~w:words{~!p==w[:#p]{p=p[:#p-1]}}^p}

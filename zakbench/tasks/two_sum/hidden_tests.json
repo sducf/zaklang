@@ -1,0 +1,38 @@
+[
+  {
+    "inputs": [[2, 7, 11, 15], 9],
+    "expected": [0, 1]
+  },
+  {
+    "inputs": [[3], 6],
+    "expected": []
+  },
+  {
+    "inputs": [[3, 3], 6],
+    "expected": [0, 1]
+  },
+  {
+    "inputs": [[1, 2, 3, 4], 7],
+    "expected": [2, 3]
+  },
+  {
+    "inputs": [[-1, -2, -3, -4], -5],
+    "expected": [1, 2]
+  },
+  {
+    "inputs": [[5, 1, 5, 1], 6],
+    "expected": [0, 1]
+  },
+  {
+    "inputs": [[1, 2, 3], 100],
+    "expected": []
+  },
+  {
+    "inputs": [[0, 4, 3, 0], 0],
+    "expected": [0, 3]
+  },
+  {
+    "inputs": [[], 5],
+    "expected": []
+  }
+]
