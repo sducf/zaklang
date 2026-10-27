@@ -14,9 +14,30 @@ tasks/
     └── reference.zak
 ```
 
-The dev suite has 10 tasks: `array_sum`, `palindrome`, `frequency_count`,
-`binary_search`, `merge_sorted`, `group_totals`, `parse_key_values`,
-`balanced_brackets`, `shipping_cost`, and `bank_account`.
+The dev suite has 50 tasks, listed here by category:
+
+- `algorithms`: `binary_search`, `merge_sorted`
+- `arrays`: `array_sum`, `count_evens`, `matrix_transpose`,
+  `number_of_islands`, `remove_duplicates`, `rotate_array`, `running_total`
+- `business_rules`: `shipping_cost`
+- `dynamic_programming`: `climb_stairs`, `coin_change`, `edit_distance`,
+  `max_subarray`
+- `maps`: `count_above_threshold`, `frequency_count`, `most_frequent_word`,
+  `two_sum`, `word_pattern`
+- `math`: `count_primes`, `digit_sum`, `greatest_common_divisor`,
+  `leap_year`, `to_binary`
+- `parsing`: `clock_minutes`, `evaluate_expression`, `roman_to_integer`
+- `simulation`: `bank_account`, `game_of_life_step`, `inventory_events`,
+  `robot_position`
+- `sorting_searching`: `count_inversions`, `integer_sqrt`, `is_sorted`,
+  `merge_intervals`
+- `stacks_queues`: `evaluate_rpn`, `josephus_survivor`, `max_nesting_depth`,
+  `remove_adjacent_pairs`, `simplify_path`
+- `strings`: `count_vowels`, `longest_common_prefix`,
+  `longest_unique_substring`, `palindrome`, `reverse_words`,
+  `run_length_encode`, `title_case`
+- `structured_data`: `group_totals`, `parse_key_values`
+- `validation`: `balanced_brackets`
 
 `task.json` is the part the model is allowed to see. `hidden_tests.json` is the
 part it never sees. They are separate files so a prompt builder can load the
