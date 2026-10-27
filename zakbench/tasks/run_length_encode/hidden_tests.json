@@ -1,0 +1,34 @@
+[
+  {
+    "inputs": ["aaabcc"],
+    "expected": "a3b1c2"
+  },
+  {
+    "inputs": ["a"],
+    "expected": "a1"
+  },
+  {
+    "inputs": ["abc"],
+    "expected": "a1b1c1"
+  },
+  {
+    "inputs": ["zzzzzzzzzzzz"],
+    "expected": "z12"
+  },
+  {
+    "inputs": ["aabbaa"],
+    "expected": "a2b2a2"
+  },
+  {
+    "inputs": ["AAaa"],
+    "expected": "A2a2"
+  },
+  {
+    "inputs": ["  x"],
+    "expected": " 2x1"
+  },
+  {
+    "inputs": [""],
+    "expected": ""
+  }
+]

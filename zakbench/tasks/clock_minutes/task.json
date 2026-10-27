@@ -1,0 +1,14 @@
+{
+  "id": "clock_minutes",
+  "title": "Clock Minutes",
+  "category": "parsing",
+  "prompt": "Given an array of durations, each written as a whole number of hours, a colon, and exactly two digits of minutes between 00 and 59, return the total length of all durations in minutes. The hours part has at least one digit and may be larger than 23.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "times",
+      "type": "string[]"
+    }
+  ],
+  "outputType": "integer"
+}

@@ -1,0 +1,34 @@
+[
+  {
+    "inputs": ["the cat the dog"],
+    "expected": "the"
+  },
+  {
+    "inputs": ["solo"],
+    "expected": "solo"
+  },
+  {
+    "inputs": ["b a"],
+    "expected": "a"
+  },
+  {
+    "inputs": ["pear apple pear apple fig"],
+    "expected": "apple"
+  },
+  {
+    "inputs": ["x y z y z"],
+    "expected": "y"
+  },
+  {
+    "inputs": ["dog dog cat cat cat"],
+    "expected": "cat"
+  },
+  {
+    "inputs": ["aa a aa a b"],
+    "expected": "a"
+  },
+  {
+    "inputs": [""],
+    "expected": ""
+  }
+]

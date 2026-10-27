@@ -1,0 +1,1 @@
+@solve(nums:[I],target:I)[I]{s:{I:I}={};~j:0..#nums{n:=nums[j];?target-n@s{^[s[target-n],j]}?!n@s{s[n]=j}}^[]}

@@ -1,0 +1,1 @@
+@solve(times:[S])I{t:=0;~s:times{p:=spl(s,":");t+=I(p[0])*60+I(p[1])}^t}
