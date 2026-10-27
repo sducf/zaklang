@@ -615,12 +615,6 @@ option {
     align-items: center;
     gap: 7px;
 }
-.demo-label {
-    color: #8ba392;
-    font-size: 8px;
-    letter-spacing: 0.8px;
-    font-family: var(--font-mono);
-}
 .editor-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -827,47 +821,23 @@ option {
 .step-button.running {
     color: var(--accent);
 }
-.run-options {
+.step-button.failed {
+    color: #efb09e;
+}
+.step-button.failed .step-number {
+    border-color: #7a4a40;
+    color: #efb09e;
+}
+.step-button.skipped {
+    opacity: 0.5;
+}
+.pipeline-actions {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin: 13px 0 26px;
-    gap: 10px;
-    font-size: 9px;
-    color: #8ca094;
+    gap: 8px;
 }
-.run-options-fields {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-.run-options label {
-    display: flex;
-    gap: 7px;
-    align-items: center;
-}
-.run-options input {
-    background: #1a241d;
-    color: #b8c9be;
-    border: 1px solid #34463a;
-    width: 66px;
-    padding: 4px 6px;
-    border-radius: 3px;
-    font-size: 9px;
-    font-family: var(--font-mono);
-}
-.run-options code {
-    margin-left: 5px;
-    color: #b8c9be;
-}
-.option-separator {
-    border-left: 1px solid #3b4b40;
-    height: 12px;
-}
-.run-options > span {
-    display: flex;
-    align-items: center;
-    gap: 5px;
+.failure,
+.console-prefix.failure {
+    color: #efb09e;
 }
 .results-panel {
     border: 1px solid var(--border);
@@ -1717,12 +1687,6 @@ td {
     .pipeline-steps {
         gap: 1px;
     }
-    .run-options {
-        gap: 8px;
-    }
-    .run-options-fields {
-        gap: 10px;
-    }
     .run-metrics strong {
         font-size: 18px;
     }
@@ -1770,9 +1734,6 @@ td {
     .main-shell {
         margin-left: 72px;
         width: calc(100% - 72px);
-    }
-    .run-options > span {
-        display: none;
     }
     .results-footnote {
         flex-wrap: wrap;
@@ -1879,8 +1840,7 @@ td {
         display: block;
     }
     .select-wrapper select,
-    .compact-select select,
-    .run-options input {
+    .compact-select select {
         font-size: 16px;
     }
     .select-wrapper select {
@@ -1926,10 +1886,6 @@ td {
     .output-editor .editor-body {
         height: 160px;
     }
-    .demo-label {
-        font-size: 7px;
-        letter-spacing: 0.3px;
-    }
     .pipeline-toolbar {
         flex-wrap: wrap;
         padding: 12px;
@@ -1949,17 +1905,6 @@ td {
     }
     .pipeline-toolbar > .button {
         width: 100%;
-    }
-    .run-options {
-        margin-bottom: 20px;
-    }
-    .run-options-fields {
-        font-size: 8px;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-    .run-options input {
-        width: 65px;
     }
     .results-header {
         padding: 0 12px;

@@ -124,8 +124,7 @@ function Layout() {
                 </main>
                 <footer className="app-footer">
                     <span>
-                        <span className="status-dot" /> Demo adapter · no
-                        backend connected
+                        <span className="status-dot" /> Connected to backend API
                     </span>
                     <span>ZakLang / Senior Design 2026–27</span>
                 </footer>
