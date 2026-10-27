@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import unittest
 
-from check_pr_naming import branch_issue, check_subject, main
+from check_pr_naming import annotate, branch_issue, check_subject, main
 
 GIT_ENV = {
     **os.environ,
@@ -159,6 +159,13 @@ class PullRequestTest(unittest.TestCase):
         self.commit(self.upstream, "100% done")
         _, out = self.run_main("SD-1", self.base, self.sha(self.upstream))
         self.assertIn("'100%25 done'", out)
+
+    def test_annotation_cannot_start_a_new_workflow_command(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            annotate("50% done\r\n::add-mask::secret\n::error::fake")
+        # One output line, so the text after a line break cannot run as its own command.
+        self.assertEqual(out.getvalue(), "::error::50%25 done%0D%0A::add-mask::secret%0A::error::fake\n")
 
 
 if __name__ == "__main__":
