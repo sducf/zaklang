@@ -235,6 +235,9 @@ def execute_run_in_background(
 
 
 def _persist_run_result(db: Session, run: BenchmarkRun, result: Any) -> None:
+    run.temperature = result.temperature
+    run.max_tokens = result.max_tokens
+
     for attempt_data in result.attempts:
         attempt = Attempt(
             run_id=run.id,

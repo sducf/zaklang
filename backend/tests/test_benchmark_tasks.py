@@ -280,6 +280,8 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.session.commit()
         result = SimpleNamespace(
             exec_outcome="pass",
+            temperature=0.0,
+            max_tokens=1024,
             attempts=[
                 {
                     "number": 1,
@@ -319,6 +321,8 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.session.expire_all()
         saved_run = self.session.get(BenchmarkRun, run.id)
         self.assertEqual(saved_run.status, "passed")
+        self.assertEqual(saved_run.temperature, 0.0)
+        self.assertEqual(saved_run.max_tokens, 1024)
         self.assertIsNotNone(saved_run.completed_at)
         self.assertEqual(len(saved_run.attempts), 1)
         saved_attempt = saved_run.attempts[0]
@@ -338,6 +342,8 @@ class BenchmarkRunConversionTests(unittest.TestCase):
                 self.session.commit()
                 result = SimpleNamespace(
                     exec_outcome=outcome,
+                    temperature=0.0,
+                    max_tokens=1024,
                     attempts=[
                         {
                             "number": 1,
@@ -420,6 +426,8 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         )
         result = SimpleNamespace(
             exec_outcome="pass",
+            temperature=0.0,
+            max_tokens=1024,
             attempts=[
                 {
                     "number": 1,
