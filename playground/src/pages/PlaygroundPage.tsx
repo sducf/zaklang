@@ -1,101 +1,148 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import ArtifactDialog from "@/components/ArtifactDialog";
 import CodeEditor from "@/components/CodeEditor";
 import Icon from "@/components/Icon";
-import { matchesReference, model, tasks } from "@/lib/demo";
-import type { DemoTask, Language } from "@/lib/demo";
-import { saveDemoRun, useDemoRuns } from "@/lib/run-store";
+import { ApiError } from "@/lib/api";
+import {
+    compileZak,
+    createRun,
+    defaultModel,
+    signature,
+    terminalStatuses,
+    useRun,
+    useRuns,
+    useTask,
+    useTasks,
+} from "@/lib/benchmark";
+import type {
+    Attempt,
+    CompileResponse,
+    CompilerError,
+    Language,
+    Task,
+} from "@/lib/benchmark";
 
 const steps = ["Generate", "Compile", "Transpile", "Run tests"];
+
+/** API errors are shown as returned, prefixed with the HTTP status. */
+function errorText(error: unknown) {
+    if (error instanceof ApiError) return `HTTP ${error.status}: ${error.message}`;
+    return error instanceof Error ? error.message : String(error);
+}
+
+function compilerErrorText(error: CompilerError) {
+    return `${error.line}:${error.col}: ${error.code}: ${error.message}`;
+}
+
+/** Visual state of one pipeline step for the latest attempt. */
+function stepState(
+    index: number,
+    language: Language,
+    attempt: Attempt | undefined,
+    active: boolean,
+) {
+    if (language === "python" && (index === 1 || index === 2)) return "skipped";
+    const done = [
+        attempt !== undefined,
+        attempt?.compile_ok === true || language === "python",
+        attempt?.transpiled_python != null || language === "python",
+        attempt?.tests_total != null,
+    ];
+    if (index === 1 && attempt?.compile_ok === false) return "failed";
+    if (
+        index === 3 &&
+        attempt?.exec_outcome != null &&
+        attempt.exec_outcome !== "pass"
+    )
+        return "failed";
+    if (done[index]) return "done";
+    return active && done.slice(0, index).every(Boolean) ? "running" : "";
+}
 
 function PlaygroundSession({
     task,
     language,
+    titles,
 }: {
-    task: DemoTask;
+    task: Task;
     language: Language;
+    titles: Map<string, string>;
 }) {
-    const [source, setSource] = useState(task[language]);
-    const [stage, setStage] = useState(0);
-    const [busy, setBusy] = useState<number | null>(null);
-    const [error, setError] = useState("");
-    const [seed, setSeed] = useState("42");
+    const queryClient = useQueryClient();
+    const isZak = language === "zak";
+    // null means "not edited": the editor shows the model's latest output.
+    const [edited, setEdited] = useState<string | null>(null);
+    const [runId, setRunId] = useState<number | null>(null);
+    const [compiled, setCompiled] = useState<CompileResponse | null>(null);
     const [outputTab, setOutputTab] = useState("console");
     const [artifact, setArtifact] = useState(false);
-    const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-    const runs = useDemoRuns();
-    const isZak = language === "zak";
-    const promptTokens = isZak
-        ? task.promptTokens
-        : 212 + tasks.indexOf(task) * 18;
-    const completionTokens = task.completionTokens[language];
-    const validSeed = /^\d+$/.test(seed) && Number(seed) <= 2147483647;
 
-    useEffect(() => () => clearTimeout(timer.current), []);
+    const runQuery = useRun(runId);
+    const run = runQuery.data;
+    const attempt = run?.attempts.at(-1);
+    const finished = run !== undefined && terminalStatuses.has(run.status);
+    const polling = runId !== null && !finished && !runQuery.error;
 
-    function reset() {
-        setSource(task[language]);
-        setStage(0);
-        setError("");
-        setOutputTab("console");
-    }
+    const compileMutation = useMutation({
+        mutationFn: compileZak,
+        onSuccess: setCompiled,
+    });
+    const runMutation = useMutation({
+        mutationFn: createRun,
+        onSuccess: (created) => {
+            queryClient.setQueryData(["run", created.id], created);
+            setRunId(created.id);
+        },
+    });
+
+    const busy = polling || runMutation.isPending || compileMutation.isPending;
+    const source = edited ?? attempt?.completion_text ?? "";
+    const custom = edited !== null && edited.trim() !== "";
+    const python = compiled ? compiled.python : attempt?.transpiled_python;
+    const compileErrors = compiled ? compiled.errors : attempt?.compile_errors;
+    const requestError =
+        runMutation.error ?? compileMutation.error ?? runQuery.error;
 
     function edit(value: string) {
-        setSource(value);
-        setStage(0);
-        setError("");
+        setEdited(value);
+        setCompiled(null);
     }
 
-    function perform(next: number, all = false) {
-        if (busy !== null || !validSeed) return;
-        setError("");
-        const startingSource = source;
-        function advance(current: number) {
-            setBusy(current);
-            timer.current = setTimeout(() => {
-                if (current === 1) setSource(task[language]);
-                if (
-                    current === 2 &&
-                    !matchesReference(startingSource, task, language)
-                ) {
-                    setError(
-                        "DEMO_UNSUPPORTED_SOURCE: This prototype can preview the supplied reference solution only. Reset the editor or select Generate to continue. Edited programs need the compiler API.",
-                    );
-                    setBusy(null);
-                    return;
-                }
-                const completed =
-                    !isZak && (current === 1 || current === 2) ? 3 : current;
-                setStage(completed);
-                if (current === 4) {
-                    saveDemoRun({
-                        id: crypto.randomUUID(),
-                        taskId: task.id,
-                        language,
-                        source: startingSource,
-                        python: isZak ? task.python : startingSource,
-                        seed: Number(seed),
-                        model,
-                        passed: true,
-                        promptTokens,
-                        completionTokens,
-                        createdAt: new Date().toISOString(),
-                    });
-                }
-                if (all && completed < 4) advance(completed + 1);
-                else setBusy(null);
-            }, 320);
-        }
-        advance(next);
+    function reset() {
+        setEdited(null);
+        setRunId(null);
+        setCompiled(null);
+        runMutation.reset();
+        compileMutation.reset();
     }
 
-    const stageName =
-        busy !== null
-            ? `${steps[busy - 1]}…`
-            : stage === 4
-              ? "Demo completed"
-              : "Ready when you are";
+    function compile() {
+        if (busy || !source.trim()) return;
+        runMutation.reset();
+        compileMutation.mutate(source);
+    }
+
+    function startRun() {
+        if (busy) return;
+        setCompiled(null);
+        compileMutation.reset();
+        // Without source the model generates a solution (PRD F8).
+        runMutation.mutate({
+            task_id: task.id,
+            language,
+            ...(custom ? { source: edited } : {}),
+        });
+    }
+
+    const stageName = runMutation.isPending
+        ? "Starting run…"
+        : compileMutation.isPending
+          ? "Compiling…"
+          : run
+            ? `Run #${run.id} · ${run.status}${finished ? "" : "…"}`
+            : "Ready when you are";
 
     return (
         <div
@@ -103,50 +150,55 @@ function PlaygroundSession({
             onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
                     event.preventDefault();
-                    perform(2, true);
+                    startRun();
                 }
             }}
         >
             <section className="task-card" aria-labelledby="task-title">
                 <div className="task-heading">
                     <span className="eyebrow">THE TASK</span>
-                    <span className="task-category">
-                        {task.category}
-                        <span className="tag-divider">/</span>Easy
-                    </span>
+                    <span className="task-category">{task.category}</span>
                 </div>
                 <div className="task-description">
                     <div>
                         <h2 id="task-title">{task.title}</h2>
-                        <p>{task.description}</p>
+                        <p>{task.prompt}</p>
                         <code className="function-signature">
-                            {task.signature}
+                            {signature(task)}
                         </code>
                     </div>
                     <div className="public-examples">
-                        <span className="eyebrow">PUBLIC EXAMPLES</span>
-                        {task.examples.map((example, i) => (
-                            <div className="example" key={i}>
-                                <code>{example.input}</code>
+                        <span className="eyebrow">INPUTS</span>
+                        {task.inputs.map((input) => (
+                            <div className="example" key={input.name}>
+                                <code>{input.name}</code>
                                 <Icon name="arrow" size={14} />
-                                <code>{example.output}</code>
+                                <code>{input.type}</code>
                             </div>
                         ))}
+                        <div className="example">
+                            <code>returns</code>
+                            <Icon name="arrow" size={14} />
+                            <code>{task.output_type}</code>
+                        </div>
                     </div>
                 </div>
             </section>
             <div className="editor-section-heading">
                 <div>
                     <h2>Your workspace</h2>
-                    <span>Edit, compile, and inspect the output.</span>
+                    <span>
+                        Leave the editor empty to let the model generate, or
+                        write {isZak ? "Zak" : "Python"} yourself.
+                    </span>
                 </div>
                 <button
                     className="text-button"
                     onClick={reset}
-                    disabled={busy !== null}
+                    disabled={busy}
                 >
                     <Icon name="reset" size={14} />
-                    Reset code
+                    Reset
                 </button>
             </div>
             <section className="editor-workspace" aria-label="Code workspace">
@@ -155,9 +207,6 @@ function PlaygroundSession({
                         <span className="status-dot" />
                         {isZak ? "Zak → Python" : "Python baseline"}
                     </span>
-                    <span className="demo-label">
-                        REFERENCE SOLUTION · DEMO
-                    </span>
                 </div>
                 <div className="editor-grid">
                     <CodeEditor
@@ -165,31 +214,23 @@ function PlaygroundSession({
                         onChange={edit}
                         language={language}
                         label={isZak ? "solution.zak" : "solution.py"}
-                        disabled={busy !== null}
+                        disabled={busy}
                     />
                     <div className="output-editor">
                         <CodeEditor
-                            value={
-                                stage >= 3
-                                    ? isZak
-                                        ? task.python
-                                        : source
-                                    : task.python
-                            }
+                            value={isZak ? (python ?? "") : ""}
                             language="python"
                             readOnly
-                            label={
-                                stage >= 3
-                                    ? isZak
-                                        ? "transpiled.py"
-                                        : "output.py"
-                                    : "reference.py"
-                            }
+                            label="transpiled.py"
                         />
                         <span
-                            className={`preview-tag ${stage >= 3 ? "completed" : ""}`}
+                            className={`preview-tag ${python ? "completed" : ""}`}
                         >
-                            {stage >= 3 ? "Demo output" : "Reference preview"}
+                            {!isZak
+                                ? "Python runs as written"
+                                : python
+                                  ? "Transpiled"
+                                  : "Not compiled yet"}
                         </span>
                     </div>
                 </div>
@@ -198,84 +239,70 @@ function PlaygroundSession({
                         className="pipeline-steps"
                         aria-label="Pipeline stages"
                     >
-                        {steps.map((step, i) => (
-                            <button
-                                key={step}
-                                aria-label={step}
-                                className={`step-button ${stage > i ? "done" : ""} ${busy === i + 1 ? "running" : ""}`}
-                                onClick={() => perform(i + 1)}
-                                disabled={
-                                    busy !== null ||
-                                    !validSeed ||
-                                    (i > 0 && stage < i) ||
-                                    (!isZak && (i === 1 || i === 2))
-                                }
-                            >
-                                <span className="step-number">
-                                    {stage > i ? (
-                                        <Icon name="check" size={11} />
-                                    ) : (
-                                        i + 1
+                        {steps.map((step, i) => {
+                            const state = stepState(
+                                i,
+                                language,
+                                attempt,
+                                polling,
+                            );
+                            return (
+                                <span
+                                    key={step}
+                                    className={`step-button ${state}`}
+                                >
+                                    <span className="step-number">
+                                        {state === "done" ? (
+                                            <Icon name="check" size={11} />
+                                        ) : state === "failed" ? (
+                                            <Icon name="close" size={11} />
+                                        ) : (
+                                            i + 1
+                                        )}
+                                    </span>
+                                    {state === "skipped"
+                                        ? `${step} · skip`
+                                        : step}
+                                    {i < 3 && (
+                                        <Icon
+                                            name="chevron"
+                                            size={11}
+                                            style={{
+                                                transform: "rotate(-90deg)",
+                                            }}
+                                        />
                                     )}
                                 </span>
-                                {!isZak && (i === 1 || i === 2)
-                                    ? `${step} · skip`
-                                    : step}
-                                {i < 3 && (
-                                    <Icon
-                                        name="chevron"
-                                        size={11}
-                                        style={{ transform: "rotate(-90deg)" }}
-                                    />
-                                )}
-                            </button>
-                        ))}
+                            );
+                        })}
                     </div>
-                    <button
-                        className="button primary"
-                        onClick={() => perform(2, true)}
-                        disabled={busy !== null || !validSeed}
-                    >
-                        <Icon name="play" size={14} />
-                        {busy !== null ? "Running…" : "Run pipeline"}
-                        <kbd>⌘ ↵</kbd>
-                    </button>
+                    <div className="pipeline-actions">
+                        {isZak && (
+                            <button
+                                className="button secondary"
+                                onClick={compile}
+                                disabled={busy || !source.trim()}
+                            >
+                                <Icon name="code" size={14} />
+                                Compile
+                            </button>
+                        )}
+                        <button
+                            className="button primary"
+                            onClick={startRun}
+                            disabled={busy}
+                        >
+                            <Icon name="play" size={14} />
+                            {busy && !compileMutation.isPending
+                                ? "Running…"
+                                : custom
+                                  ? "Run my code"
+                                  : "Generate & run"}
+                            <kbd>⌘ ↵</kbd>
+                        </button>
+                    </div>
                 </div>
             </section>
-            <div className="run-options">
-                <div className="run-options-fields">
-                    <label>
-                        Seed
-                        <input
-                            aria-label="Run seed"
-                            inputMode="numeric"
-                            type="number"
-                            min="0"
-                            max="2147483647"
-                            step="1"
-                            value={seed}
-                            disabled={busy !== null}
-                            onChange={(event) => {
-                                setSeed(event.target.value);
-                                setStage(0);
-                            }}
-                        />
-                    </label>
-                    <span className="option-separator" />
-                    <span>
-                        Temperature <code>0.0</code>
-                    </span>
-                    <span>
-                        Max attempts <code>1</code>
-                    </span>
-                </div>
-                <span>
-                    <Icon name="cpu" size={13} />
-                    {validSeed
-                        ? "Deterministic demo fixture"
-                        : "Seed must be an integer from 0 to 2147483647"}
-                </span>
-            </div>
             <section className="results-panel" aria-label="Run output">
                 <div className="results-header">
                     <div
@@ -297,16 +324,11 @@ function PlaygroundSession({
                                     <Icon name="terminal" size={14} />
                                 )}
                                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                                {tab === "history" && (
-                                    <span className="count-badge">
-                                        {runs.length}
-                                    </span>
-                                )}
                             </button>
                         ))}
                     </div>
                     <span
-                        className={`run-state ${stage === 4 ? "success" : ""}`}
+                        className={`run-state ${run?.status === "passed" ? "success" : ""}`}
                         aria-live="polite"
                     >
                         <span className="status-dot" />
@@ -320,202 +342,198 @@ function PlaygroundSession({
                     aria-labelledby={`tab-${outputTab}`}
                     aria-live="polite"
                 >
-                    {error && (
+                    {requestError && (
                         <p className="compiler-error" role="alert">
-                            {error}
+                            {errorText(requestError)}
                         </p>
                     )}
+                    {compileErrors?.map((error, i) => (
+                        <p className="compiler-error" key={i}>
+                            {compilerErrorText(error)}
+                        </p>
+                    ))}
                     {outputTab === "console" && (
                         <div className="console-lines">
                             <div>
                                 <span className="console-prefix">›</span>
-                                <span>Zak playground initialized.</span>
+                                <span>Zak playground connected.</span>
                                 <span className="console-comment">
-                                    // local demo adapter
+                                    // backend API
                                 </span>
                             </div>
-                            {stage >= 1 && (
+                            {compiled && (
                                 <div>
-                                    <span className="console-prefix success">
-                                        ✓
+                                    <span
+                                        className={`console-prefix ${compiled.ok ? "success" : "failure"}`}
+                                    >
+                                        {compiled.ok ? "✓" : "✗"}
                                     </span>
-                                    Reference solution loaded.{" "}
-                                    <span className="console-comment">
-                                        No model request was made.
-                                    </span>
+                                    {compiled.ok
+                                        ? "Compiled. Transpiled Python is on the right."
+                                        : `Compile failed with ${compiled.errors.length} error(s).`}
                                 </div>
                             )}
-                            {stage >= 2 && (
+                            {run && (
                                 <div>
-                                    <span className="console-prefix success">
-                                        ✓
-                                    </span>
-                                    Source matches the{" "}
-                                    {isZak ? "Zak" : "Python"} reference
-                                    fixture.
+                                    <span className="console-prefix">›</span>
+                                    Run #{run.id} {run.status}
+                                    {edited === null && (
+                                        <span className="console-comment">
+                                            model-generated source
+                                        </span>
+                                    )}
                                 </div>
                             )}
-                            {stage >= 3 && (
-                                <div>
-                                    <span className="console-prefix success">
-                                        ✓
+                            {run?.attempts.map((item) => (
+                                <div key={item.index}>
+                                    <span
+                                        className={`console-prefix ${item.exec_outcome === "pass" ? "success" : "failure"}`}
+                                    >
+                                        {item.exec_outcome === "pass"
+                                            ? "✓"
+                                            : "✗"}
                                     </span>
-                                    Python output loaded from the demo fixture.
+                                    Attempt {item.index}: compile{" "}
+                                    {item.compile_ok === null
+                                        ? "skipped"
+                                        : item.compile_ok
+                                          ? "ok"
+                                          : "failed"}
+                                    , outcome {item.exec_outcome ?? "none"}
+                                    {item.tests_total != null &&
+                                        `, tests ${item.tests_passed}/${item.tests_total}`}
                                 </div>
-                            )}
-                            {stage === 4 ? (
-                                <div>
-                                    <span className="console-prefix success">
-                                        ✓
-                                    </span>
-                                    Demo passed. Saved to local history.{" "}
-                                    <span className="console-comment">
-                                        No code was executed.
-                                    </span>
-                                </div>
-                            ) : (
+                            ))}
+                            {!run && !compiled && (
                                 <div>
                                     <span className="console-prefix muted">
                                         ·
                                     </span>
                                     <span className="muted">
-                                        Run the pipeline to explore generation,
-                                        transpilation, and results.
+                                        Select Generate &amp; run, or write
+                                        code and run it.
                                     </span>
                                 </div>
                             )}
                         </div>
                     )}
                     {outputTab === "results" &&
-                        (stage === 4 ? (
+                        (run && finished ? (
                             <div className="run-metrics">
                                 <div>
                                     <span className="eyebrow">OUTCOME</span>
-                                    <strong className="success">
-                                        Demo passed
+                                    <strong
+                                        className={
+                                            run.status === "passed"
+                                                ? "success"
+                                                : "failure"
+                                        }
+                                    >
+                                        {run.status}
                                     </strong>
-                                    <small>Reference fixture only</small>
+                                    <small>
+                                        {attempt?.exec_outcome ?? "no outcome"}
+                                    </small>
+                                </div>
+                                <div>
+                                    <span className="eyebrow">TESTS</span>
+                                    <strong>
+                                        {attempt?.tests_passed ?? "–"}{" "}
+                                        <span className="muted">
+                                            / {attempt?.tests_total ?? "–"}
+                                        </span>
+                                    </strong>
+                                    <small>Hidden tests, server side</small>
                                 </div>
                                 <button onClick={() => setArtifact(true)}>
                                     <span className="eyebrow">
                                         TOTAL TOKENS
                                     </span>
                                     <strong>
-                                        {(
-                                            promptTokens + completionTokens
-                                        ).toLocaleString()}{" "}
+                                        {run.total_tokens.toLocaleString()}{" "}
                                         <Icon name="external" size={13} />
                                     </strong>
                                     <small>
-                                        Illustrative prompt + completion
+                                        {run.prompt_tokens_total.toLocaleString()}{" "}
+                                        prompt ·{" "}
+                                        {run.completion_tokens_total.toLocaleString()}{" "}
+                                        completion
                                     </small>
                                 </button>
-                                <button onClick={() => setArtifact(true)}>
-                                    <span className="eyebrow">COMPLETION</span>
-                                    <strong>{completionTokens}</strong>
-                                    <small>Illustrative tokens</small>
-                                </button>
                                 <div>
-                                    <span className="eyebrow">ATTEMPTS</span>
+                                    <span className="eyebrow">LATENCY</span>
                                     <strong>
-                                        1 <span className="muted">/ 1</span>
+                                        {Math.round(
+                                            run.latency_ms_total,
+                                        ).toLocaleString()}
+                                        <span className="muted">ms</span>
                                     </strong>
-                                    <small>No repair attempts</small>
+                                    <small>
+                                        {run.attempts_used} attempt
+                                        {run.attempts_used === 1 ? "" : "s"}
+                                    </small>
                                 </div>
                             </div>
                         ) : (
                             <div className="empty-inline">
                                 <Icon name="chart" />
                                 <span>
-                                    Results will appear after you run the demo
-                                    pipeline.
+                                    Results appear when a run finishes.
                                 </span>
                             </div>
                         ))}
-                    {outputTab === "history" &&
-                        (runs.length ? (
-                            <div className="history-list">
-                                {runs.slice(0, 5).map((run) => (
-                                    <Link
-                                        to={`/explorer?run=${run.id}`}
-                                        className="history-row"
-                                        key={run.id}
-                                    >
-                                        <span className="success">
-                                            <Icon name="check" size={14} />
-                                        </span>
-                                        <span>
-                                            {
-                                                tasks.find(
-                                                    (item) =>
-                                                        item.id === run.taskId,
-                                                )?.title
-                                            }
-                                        </span>
-                                        <code>{run.language}</code>
-                                        <span>
-                                            {new Date(
-                                                run.createdAt,
-                                            ).toLocaleTimeString([], {
-                                                hour: "2-digit",
-                                                minute: "2-digit",
-                                            })}
-                                        </span>
-                                        <Icon name="arrow" size={14} />
-                                    </Link>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="empty-inline">
-                                <Icon name="clock" />
-                                <span>
-                                    Your demo runs will be saved here, in this
-                                    browser.
-                                </span>
-                            </div>
-                        ))}
+                    {outputTab === "history" && <RunHistory titles={titles} />}
                 </div>
                 <div className="results-footnote">
                     <Icon name="book" size={13} />
                     <span>
-                        Prototype runs use sample solutions and illustrative
-                        metrics. Hidden tests are never sent to this browser.
+                        Hidden tests are never sent to this browser.
                     </span>
                     <Link to="/docs">
                         How it works <Icon name="arrow" size={12} />
                     </Link>
                 </div>
             </section>
-            {artifact && (
+            {artifact && run && (
                 <ArtifactDialog
-                    title="Token accounting · demo fixture"
+                    title={`Token accounting · run #${run.id}`}
                     onClose={() => setArtifact(false)}
                 >
                     <p>
-                        These sample counts are fixtures, not tokenizer
-                        measurements. Production runs will store model-native
-                        counts and full prompt artifacts for every attempt.
+                        Token counts come from the model&apos;s own tokenizer
+                        and include every attempt, repairs included.
                     </p>
                     <dl className="artifact-facts">
                         <div>
                             <dt>Prompt (including language instructions)</dt>
-                            <dd>{promptTokens}</dd>
+                            <dd>{run.prompt_tokens_total}</dd>
                         </div>
                         <div>
                             <dt>Completion</dt>
-                            <dd>{completionTokens}</dd>
+                            <dd>{run.completion_tokens_total}</dd>
                         </div>
                         <div>
-                            <dt>Total across 1 attempt</dt>
-                            <dd>{promptTokens + completionTokens}</dd>
+                            <dt>
+                                Total across {run.attempts_used} attempt
+                                {run.attempts_used === 1 ? "" : "s"}
+                            </dt>
+                            <dd>{run.total_tokens}</dd>
                         </div>
+                        {run.attempts.map((item) => (
+                            <div key={item.index}>
+                                <dt>Attempt {item.index}</dt>
+                                <dd>
+                                    {item.prompt_tokens ?? "–"} +{" "}
+                                    {item.completion_tokens ?? "–"} ·{" "}
+                                    {item.latency_ms ?? "–"} ms
+                                </dd>
+                            </div>
+                        ))}
                         <div>
-                            <dt>Model</dt>
-                            <dd>{model}</dd>
-                        </div>
-                        <div>
-                            <dt>Seed / temperature</dt>
-                            <dd>{seed} / 0.0</dd>
+                            <dt>Model / temperature</dt>
+                            <dd>
+                                {run.model_name} / {run.temperature ?? "–"}
+                            </dd>
                         </div>
                     </dl>
                     <pre className="artifact-code">{source}</pre>
@@ -525,16 +543,62 @@ function PlaygroundSession({
     );
 }
 
+function RunHistory({ titles }: { titles: Map<string, string> }) {
+    const runs = useRuns();
+    if (runs.error) {
+        return <p className="compiler-error">{errorText(runs.error)}</p>;
+    }
+    if (!runs.data?.length) {
+        return (
+            <div className="empty-inline">
+                <Icon name="clock" />
+                <span>
+                    {runs.isPending ? "Loading runs…" : "Your runs show up here."}
+                </span>
+            </div>
+        );
+    }
+    return (
+        <div className="history-list">
+            {runs.data.slice(0, 5).map((run) => (
+                <div className="history-row" key={run.id}>
+                    <span
+                        className={
+                            run.status === "passed" ? "success" : "failure"
+                        }
+                    >
+                        <Icon
+                            name={run.status === "passed" ? "check" : "close"}
+                            size={14}
+                        />
+                    </span>
+                    <span>{titles.get(run.task_id) ?? run.task_id}</span>
+                    <code>{run.language}</code>
+                    <span>
+                        #{run.id} · {run.status}
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export default function PlaygroundPage() {
     const [params, setParams] = useSearchParams();
-    const task =
-        tasks.find((item) => item.id === params.get("task")) ?? tasks[0];
+    const tasks = useTasks();
+    const taskId = params.get("task") ?? tasks.data?.[0]?.id;
+    const task = useTask(taskId);
     const language: Language =
         params.get("lang") === "python" ? "python" : "zak";
+    const titles = new Map(
+        (tasks.data ?? []).map((item) => [item.id, item.title]),
+    );
 
-    function select(taskId: string, lang: Language) {
-        setParams({ task: taskId, lang });
+    function select(nextTaskId: string, lang: Language) {
+        setParams({ task: nextTaskId, lang });
     }
+
+    const loadError = tasks.error ?? task.error;
 
     return (
         <>
@@ -562,12 +626,13 @@ export default function PlaygroundPage() {
                         <Icon name="code" size={16} />
                         <select
                             aria-label="Task"
-                            value={task.id}
+                            value={taskId ?? ""}
+                            disabled={!tasks.data}
                             onChange={(event) =>
                                 select(event.target.value, language)
                             }
                         >
-                            {tasks.map((item) => (
+                            {tasks.data?.map((item) => (
                                 <option key={item.id} value={item.id}>
                                     {item.title}
                                 </option>
@@ -580,8 +645,8 @@ export default function PlaygroundPage() {
                     <span className="eyebrow">02 / MODEL</span>
                     <span className="select-wrapper">
                         <Icon name="cpu" size={16} />
-                        <select aria-label="Model" defaultValue="llama">
-                            <option value="llama">{model}</option>
+                        <select aria-label="Model" defaultValue="default">
+                            <option value="default">{defaultModel}</option>
                         </select>
                         <span className="quant-badge">Q4_K_M</span>
                         <Icon name="chevron" size={14} />
@@ -595,7 +660,8 @@ export default function PlaygroundPage() {
                                 key={lang}
                                 aria-pressed={language === lang}
                                 className={language === lang ? "selected" : ""}
-                                onClick={() => select(task.id, lang)}
+                                disabled={!taskId}
+                                onClick={() => taskId && select(taskId, lang)}
                             >
                                 {lang === "zak" ? (
                                     <>
@@ -609,11 +675,23 @@ export default function PlaygroundPage() {
                     </div>
                 </div>
             </div>
-            <PlaygroundSession
-                key={`${task.id}-${language}`}
-                task={task}
-                language={language}
-            />
+            {loadError ? (
+                <p className="compiler-error" role="alert">
+                    {errorText(loadError)}
+                </p>
+            ) : task.data ? (
+                <PlaygroundSession
+                    key={`${task.data.id}-${language}`}
+                    task={task.data}
+                    language={language}
+                    titles={titles}
+                />
+            ) : (
+                <div className="empty-inline">
+                    <Icon name="clock" />
+                    <span>Loading tasks…</span>
+                </div>
+            )}
         </>
     );
 }
