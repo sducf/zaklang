@@ -1,0 +1,14 @@
+{
+  "id": "count_primes",
+  "title": "Count Primes",
+  "category": "math",
+  "prompt": "Given a non-negative integer n, return how many prime numbers are strictly less than n. A prime number is a whole number greater than 1 whose only positive divisors are 1 and itself.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "n",
+      "type": "integer"
+    }
+  ],
+  "outputType": "integer"
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "inputs": ["kitten", "sitting"],
+    "expected": 3
+  },
+  {
+    "inputs": ["", "abc"],
+    "expected": 3
+  },
+  {
+    "inputs": ["abc", ""],
+    "expected": 3
+  },
+  {
+    "inputs": ["same", "same"],
+    "expected": 0
+  },
+  {
+    "inputs": ["horse", "ros"],
+    "expected": 3
+  },
+  {
+    "inputs": ["intention", "execution"],
+    "expected": 5
+  },
+  {
+    "inputs": ["ab", "ba"],
+    "expected": 2
+  },
+  {
+    "inputs": ["a", "b"],
+    "expected": 1
+  },
+  {
+    "inputs": ["", ""],
+    "expected": 0
+  }
+]

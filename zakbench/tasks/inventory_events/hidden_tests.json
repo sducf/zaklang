@@ -1,0 +1,34 @@
+[
+  {
+    "inputs": [["add apple 5", "add pear 2", "remove apple 3"]],
+    "expected": {"apple": 2, "pear": 2}
+  },
+  {
+    "inputs": [["remove ghost 4"]],
+    "expected": {}
+  },
+  {
+    "inputs": [["add a 1", "remove a 1"]],
+    "expected": {}
+  },
+  {
+    "inputs": [["add a 3", "remove a 10", "add a 2"]],
+    "expected": {"a": 2}
+  },
+  {
+    "inputs": [["add x 10", "add y 20", "add x 5", "remove y 7"]],
+    "expected": {"x": 15, "y": 13}
+  },
+  {
+    "inputs": [["add milk 1"]],
+    "expected": {"milk": 1}
+  },
+  {
+    "inputs": [["add b 4", "remove b 2", "remove b 2", "add c 9", "remove c 1"]],
+    "expected": {"c": 8}
+  },
+  {
+    "inputs": [[]],
+    "expected": {}
+  }
+]

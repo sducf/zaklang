@@ -1,0 +1,18 @@
+{
+  "id": "coin_change",
+  "title": "Coin Change",
+  "category": "dynamic_programming",
+  "prompt": "Given an array of distinct positive coin values in any order and a non-negative target amount, return the smallest number of coins that add up to exactly the amount, using as many coins of each value as needed. If the amount cannot be made, return -1. An amount of 0 needs 0 coins.",
+  "functionName": "solve",
+  "inputs": [
+    {
+      "name": "coins",
+      "type": "integer[]"
+    },
+    {
+      "name": "amount",
+      "type": "integer"
+    }
+  ],
+  "outputType": "integer"
+}

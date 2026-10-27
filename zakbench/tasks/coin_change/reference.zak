@@ -1,0 +1,1 @@
+@solve(coins:[I],amount:I)I{d:[I]=[0];~i:1..amount+1{b:=-1;~c:coins{?c<=i&d[i-c]>=0{v:=d[i-c]+1;?b<0|v<b{b=v}}}d<<b}^d[amount]}
