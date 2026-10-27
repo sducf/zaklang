@@ -120,6 +120,9 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.user = User(email="user@example.com", password_hash="hash")
         self.session.add(self.user)
         self.session.flush()
+        self.other_user = User(email="other@example.com", password_hash="hash")
+        self.session.add(self.other_user)
+        self.session.flush()
 
     def test_create_queued_run_persists_contract_defaults(self):
         run = benchmark.create_queued_run(
@@ -233,6 +236,30 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertIs(function, benchmark.execute_run_in_background)
         self.assertEqual(args[0], response.id)
         self.assertEqual(args[1:], ("array_sum", benchmark.Language.PYTHON, payload.source))
+
+    def test_run_reads_are_scoped_to_the_current_user(self):
+        owned_run = benchmark.create_queued_run(
+            self.session,
+            self.user,
+            "array_sum",
+            benchmark.Language.PYTHON,
+        )
+        other_run = benchmark.create_queued_run(
+            self.session,
+            self.other_user,
+            "array_sum",
+            benchmark.Language.PYTHON,
+        )
+        self.session.commit()
+
+        listed = benchmark.list_runs_for_user(self.session, self.user)
+        owned = benchmark.get_run_for_user(self.session, self.user, owned_run.id)
+
+        self.assertEqual([item.id for item in listed], [owned_run.id])
+        self.assertEqual(owned.id, owned_run.id)
+        with self.assertRaises(HTTPException) as raised:
+            benchmark.get_run_for_user(self.session, self.user, other_run.id)
+        self.assertEqual(raised.exception.status_code, 404)
 
 
 if __name__ == "__main__":

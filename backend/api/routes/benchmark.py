@@ -19,8 +19,10 @@ from api.controllers.benchmark import (
     compile_controller,
     create_queued_run,
     execute_run_in_background,
+    get_run_for_user,
     get_task_controller,
     list_tasks_controller,
+    list_runs_for_user,
     run_to_response,
 )
 from database.models import User
@@ -82,12 +84,14 @@ def create_run(
 def get_run(
     run_id: int,
     user: User = Depends(get_current_user_controller),
+    db: Session = Depends(get_db),
 ) -> RunResponse:
-    _not_implemented()
+    return get_run_for_user(db, user, run_id)
 
 
 @router.get("/runs", response_model=list[RunListItem])
 def list_runs(
     user: User = Depends(get_current_user_controller),
+    db: Session = Depends(get_db),
 ) -> list[RunListItem]:
-    _not_implemented()
+    return list_runs_for_user(db, user)

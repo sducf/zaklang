@@ -270,6 +270,35 @@ def _run_status_for_outcome(outcome: str) -> str:
     return RunStatus.ERROR.value
 
 
+def list_runs_for_user(db: Session, user: User) -> list[RunListItem]:
+    """Return only the current user's benchmark runs."""
+    runs = (
+        db.query(BenchmarkRun)
+        .filter(BenchmarkRun.user_id == user.id)
+        .order_by(BenchmarkRun.id.desc())
+        .all()
+    )
+    return [run_to_list_item(run) for run in runs]
+
+
+def get_run_for_user(db: Session, user: User, run_id: int) -> RunResponse:
+    """Return one run only when it belongs to the current user."""
+    run = (
+        db.query(BenchmarkRun)
+        .filter(
+            BenchmarkRun.id == run_id,
+            BenchmarkRun.user_id == user.id,
+        )
+        .first()
+    )
+    if run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Run not found",
+        )
+    return run_to_response(run)
+
+
 def run_to_response(run: BenchmarkRun) -> RunResponse:
     """Convert a persisted run and its related rows to the public response."""
     attempts = [
