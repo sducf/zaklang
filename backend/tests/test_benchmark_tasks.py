@@ -210,7 +210,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.session.commit()
         self.session.refresh(run)
 
-        item = benchmark.run_to_list_item(run)
+        item = benchmark.run_to_list_item(run, 1)
 
         self.assertEqual(item.language, benchmark.Language.PYTHON)
         self.assertEqual(item.attempts_used, 1)

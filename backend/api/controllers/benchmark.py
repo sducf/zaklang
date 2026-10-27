@@ -9,6 +9,7 @@ import sys
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from api.schemas.benchmark import (
@@ -285,13 +286,22 @@ def _run_status_for_outcome(outcome: str) -> str:
 
 def list_runs_for_user(db: Session, user: User) -> list[RunListItem]:
     """Return only the current user's benchmark runs."""
+    attempt_count = (
+        db.query(func.count(Attempt.id))
+        .filter(Attempt.run_id == BenchmarkRun.id)
+        .correlate(BenchmarkRun)
+        .scalar_subquery()
+    )
     runs = (
-        db.query(BenchmarkRun)
+        db.query(BenchmarkRun, attempt_count.label("attempts_used"))
         .filter(BenchmarkRun.user_id == user.id)
         .order_by(BenchmarkRun.id.desc())
         .all()
     )
-    return [run_to_list_item(run) for run in runs]
+    return [
+        run_to_list_item(run, attempts_used)
+        for run, attempts_used in runs
+    ]
 
 
 def get_run_for_user(db: Session, user: User, run_id: int) -> RunResponse:
@@ -340,14 +350,17 @@ def run_to_response(run: BenchmarkRun) -> RunResponse:
     )
 
 
-def run_to_list_item(run: BenchmarkRun) -> RunListItem:
+def run_to_list_item(
+    run: BenchmarkRun,
+    attempts_used: int,
+) -> RunListItem:
     """Convert a persisted run to the user-scoped list response."""
     return RunListItem(
         id=run.id,
         task_id=run.task_id,
         language=Language(run.language),
         status=RunStatus(run.status),
-        attempts_used=len(run.attempts),
+        attempts_used=attempts_used,
     )
 
 
