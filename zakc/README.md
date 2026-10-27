@@ -1,8 +1,6 @@
-# zakc — Rust compiler scratch
+# zakc — Rust compiler
 
-![I will review it later]
-
-An uncommitted experiment alongside the existing Python compiler. Package,
+A native Rust Zak compiler alongside the existing Python compiler. Package,
 library, and binary are named `zakc`. The compiler implementation is native
 Rust; Python is used only by the comparison/benchmark harnesses and the
 existing execution sandbox.

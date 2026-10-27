@@ -372,11 +372,33 @@ impl Builder {
                 ExprKind::Literal(Literal::Str(serde_json::from_str(text).at(location)?))
             }
             Rule::name => ExprKind::Name(text.to_owned()),
-            Rule::array => ExprKind::Array(
-                children
-                    .map(|p| self.expression(p))
-                    .collect::<Result<_>>()?,
-            ),
+            Rule::array => {
+                let items: Vec<_> = children.collect();
+                match items.as_slice() {
+                    [value, tail] if tail.as_rule() == Rule::comprehension => {
+                        let value = Box::new(self.expression(value.clone())?);
+                        let mut fields = tail.clone().into_inner();
+                        let name = next(&mut fields, location)?.as_str().to_owned();
+                        let iteration = Box::new(self.iteration(next(&mut fields, location)?)?);
+                        let condition = fields
+                            .next()
+                            .map(|p| self.expression(p).map(Box::new))
+                            .transpose()?;
+                        ExprKind::Comprehension {
+                            value,
+                            name,
+                            iteration,
+                            condition,
+                        }
+                    }
+                    _ => ExprKind::Array(
+                        items
+                            .into_iter()
+                            .map(|p| self.expression(p))
+                            .collect::<Result<_>>()?,
+                    ),
+                }
+            }
             Rule::map => {
                 let mut entries = vec![];
                 for pair in children {
@@ -462,13 +484,20 @@ impl Builder {
                             Box::new(self.expression(next(&mut fields, span)?)?),
                         )
                     } else {
-                        let (mut lower, mut upper) = (None, None);
+                        let (mut lower, mut upper, mut colon) = (None, None, false);
                         for bound in fields {
                             match bound.as_rule() {
                                 Rule::lower => lower = Some(Box::new(self.expression(bound)?)),
                                 Rule::upper => upper = Some(Box::new(self.expression(bound)?)),
+                                Rule::colon => colon = true,
                                 _ => (),
                             }
+                        }
+                        if !colon {
+                            let index = lower.trace_ctx("missing index").at(span)?;
+                            value =
+                                self.expr_node(span, ExprKind::Index(Box::new(value), index))?;
+                            continue;
                         }
                         ExprKind::Slice {
                             collection: Box::new(value),
@@ -479,21 +508,6 @@ impl Builder {
                     value = self.expr_node(span, kind)?;
                 }
                 return Ok(value);
-            }
-            Rule::comprehension => {
-                let value = Box::new(self.expression(next(&mut children, location)?)?);
-                let name = next(&mut children, location)?.as_str().to_owned();
-                let iteration = Box::new(self.iteration(next(&mut children, location)?)?);
-                let condition = children
-                    .next()
-                    .map(|p| self.expression(p).map(Box::new))
-                    .transpose()?;
-                ExprKind::Comprehension {
-                    value,
-                    name,
-                    iteration,
-                    condition,
-                }
             }
             _ => {
                 return Err(CompilerError::new(

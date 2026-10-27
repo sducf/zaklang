@@ -162,5 +162,4 @@ Final verification: 19 Rust contracts passed; formatting and Clippy are clean;
 the existing Python suite passed 358 tests plus three subtests and Pyright
 reported no errors. CLI recursive checking, Zak AST JSON, Python AST output,
 stdin diagnostics, and structured missing-file errors also passed manual
-checks. Git shows only the untracked `zakc/` directory; no commits or tracked
-file edits were made for this experiment.
+checks. The crate lives entirely in `zakc/` and changes no files outside it.

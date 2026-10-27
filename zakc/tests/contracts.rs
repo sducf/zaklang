@@ -265,3 +265,22 @@ fn long_delimiter_free_ternaries_return_a_diagnostic_instead_of_aborting() {
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json[0]["errors"][0]["code"], "COMPLEXITY_LIMIT");
 }
+
+#[test]
+fn nested_brackets_parse_in_linear_time() {
+    let started = std::time::Instant::now();
+    let depth = 30;
+    let arrays = format!("x:={}1{}", "[".repeat(depth), "]".repeat(depth));
+    let indexes = format!(
+        "a:[I]=[0];x:=a{}[0]{}",
+        "[a".repeat(depth),
+        "]".repeat(depth)
+    );
+    assert!(compile(&arrays).is_ok());
+    assert!(compile(&indexes).is_ok());
+    assert!(started.elapsed() < std::time::Duration::from_secs(2));
+    let python = compile_to_python("a:[I]=[1,2,3];out(a[1:]);out(a[:2]);out(a[:]);out(a[0])")
+        .unwrap()
+        .source;
+    assert!(python.contains("[1:]") && python.contains("[:2]") && python.contains("[:]"));
+}
