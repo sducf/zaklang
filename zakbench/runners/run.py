@@ -3,16 +3,18 @@
 Zak is compiled and transpiled, and Python is syntax-checked, inside evaluate()
 before anything runs in the sandbox.
 """
+import os
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 import json
 from pathlib import Path
 
-from zakbench.evaluation.evaluator import EvalResult, evaluate
+from zakbench.evaluation.evaluator import EvalResult, evaluate as evaluate_local
 from zakbench.evaluation.metrics import Attempt, compute_run_metrics
 from zakbench.runners.inference import generate
 from zakbench.runners.prompt import PROMPT_VERSION, build_prompt, extract_code, load_task, repair_prompt
+from zakbench.evaluation.remote import evaluate_remote
 
 TEMPERATURE = 0.0
 MAX_TOKENS = 1024
@@ -48,6 +50,14 @@ class RunResult:
     latency_ms_total: int
     attempts: list[dict]
 
+
+def evaluate(source, task_id, language="python"):
+    """Select local Docker or the configured remote worker."""
+
+    if os.getenv("SANDBOX_WORKER_URL"):
+        return evaluate_remote(source, task_id, language)
+
+    return evaluate_local(source, task_id, language)
 
 def run_single(task_id, language, model_id, spec_version, prompt_version, seed, max_attempts=3, source=None):
     """Run one task in one language for up to max_attempts and return the result.
