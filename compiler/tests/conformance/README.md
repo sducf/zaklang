@@ -66,6 +66,13 @@ fallbacks. Running all compiler tests now includes these Docker checks:
 .venv/bin/python -m pytest compiler/tests -q
 ```
 
+These tests have the `docker` marker. CI has no Docker, so it runs the other
+compiler tests with `-m "not docker"`. Do the same locally without Docker:
+
+```sh
+.venv/bin/python -m pytest compiler/tests -q -m "not docker"
+```
+
 ## Other checks
 
 `test_fixtures.py` loads the real grammar with Lark's LALR parser, parses every
