@@ -1,7 +1,8 @@
 """SD-35 compile/transpile/execute checks using the real Docker sandbox.
 
 Docker and its prebuilt sandbox image are required. Missing dependencies fail
-these tests; there are no skips and no local execution fallback.
+these tests; there are no skips and no local execution fallback. CI has no
+Docker, so it leaves these tests out with `-m "not docker"`.
 """
 
 import ast
@@ -15,6 +16,8 @@ from compiler.src import compile as compile_zak, transpile
 from sandbox.runner import execute_program
 from zakbench.evaluation.evaluator import evaluate
 
+
+pytestmark = pytest.mark.docker
 
 ROOT = Path(__file__).resolve().parents[3]
 CORPUS = Path(__file__).resolve().parent
