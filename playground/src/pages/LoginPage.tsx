@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Navigate, useLocation } from "react-router";
 import Icon from "@/components/Icon";
+import { ZakMark } from "@/components/Logo";
 import { ApiError } from "@/lib/api";
 import { login, register, useAuth } from "@/lib/auth";
 
@@ -49,6 +50,7 @@ export default function LoginPage() {
         <>
             <div className="page-heading">
                 <div>
+                    <ZakMark className="login-mark" title="Zak" />
                     <div className="eyebrow heading-eyebrow">
                         YOUR WORKSPACE
                     </div>

@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/components/Icon";
+import { ZakMark, ZakWordmark } from "@/components/Logo";
 import { logout, useAuth } from "@/lib/auth";
 
 const links: { to: string; label: string; icon: IconName }[] = [
@@ -22,12 +23,11 @@ function Layout() {
                 Skip to content
             </a>
             <aside className="sidebar">
-                <Link to="/playground" className="brand">
-                    <span className="brand-mark">
-                        z<span>.</span>
-                    </span>
+                <Link to="/playground" className="brand" aria-label="zaklang">
+                    <ZakMark small className="brand-mark" />
                     <span>
-                        zaklang<span className="brand-version">v0.1</span>
+                        <ZakWordmark className="brand-wordmark" />
+                        <span className="brand-version">v0.1</span>
                     </span>
                 </Link>
                 <div className="workspace-label">
