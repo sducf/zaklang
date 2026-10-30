@@ -123,21 +123,22 @@ p {
     letter-spacing: -0.9px;
 }
 .brand-mark {
-    font-family: var(--font-mono);
-    background: #a2efc4;
-    color: #192a20;
-    display: grid;
-    place-content: center;
+    display: block;
+    flex: none;
     width: 31px;
     height: 31px;
-    border-radius: 7px;
-    font-size: 25px;
-    line-height: 1;
-    letter-spacing: -3px;
-    padding-right: 3px;
 }
-.brand-mark span {
-    display: contents;
+.brand-wordmark {
+    display: inline-block;
+    height: 17px;
+    width: auto;
+    vertical-align: middle;
+}
+.login-mark {
+    display: block;
+    width: 88px;
+    height: 88px;
+    margin-bottom: 20px;
 }
 .brand-version {
     font-family: var(--font-mono);
@@ -1773,7 +1774,9 @@ td {
     .brand-mark {
         width: 26px;
         height: 26px;
-        font-size: 22px;
+    }
+    .brand-wordmark {
+        height: 14px;
     }
     .brand > span:last-child {
         display: block;
