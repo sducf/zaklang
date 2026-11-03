@@ -130,6 +130,12 @@
 }
 
 /* Used by the reduced-motion fallback, so it lives outside @theme. */
+@keyframes pulse {
+    50% {
+        opacity: 0.4;
+    }
+}
+
 @keyframes fade {
     from {
         opacity: 0;
@@ -434,11 +440,18 @@
     *,
     *::before,
     *::after {
-        animation-name: fade !important;
-        animation-duration: 150ms !important;
-        animation-iteration-count: 1 !important;
         transition-property: opacity !important;
         transition-duration: 150ms !important;
+    }
+    .animate-rise,
+    .animate-enter {
+        animation: fade 150ms ease both;
+    }
+    /* Busy indicators keep moving, without travel. */
+    .animate-slide {
+        left: 0;
+        width: 100%;
+        animation: pulse 1200ms ease-in-out infinite;
     }
     .btn:active:not(:disabled) {
         transform: none;

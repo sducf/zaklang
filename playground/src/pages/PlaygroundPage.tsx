@@ -80,15 +80,16 @@ function RunBar({ run }: { run: Run | undefined }) {
         <div
             className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-border-default bg-surface-default px-4 py-3"
             aria-label="Current run"
-            aria-live="polite"
         >
             <Stat label="Run">{run ? `#${run.id}` : "–"}</Stat>
             <Stat label="Status">
-                {run ? (
-                    <StatusBadge status={run.status} />
-                ) : (
-                    <span className="badge badge-outline">Ready</span>
-                )}
+                <span aria-live="polite">
+                    {run ? (
+                        <StatusBadge status={run.status} />
+                    ) : (
+                        <span className="badge badge-outline">Ready</span>
+                    )}
+                </span>
             </Stat>
             <Stat label="Attempts">{run ? run.attempts_used : "–"}</Stat>
             <div className="flex flex-col gap-1">
@@ -269,6 +270,8 @@ function PlaygroundSession({
                 // Per-call callbacks skip a session that was left mid-request.
                 onSuccess: (created) => {
                     queryClient.setQueryData(["run", created.id], created);
+                    // Recent runs picks it up and polls until it finishes.
+                    void queryClient.invalidateQueries({ queryKey: ["runs"] });
                     setRunId(created.id);
                 },
             },
@@ -322,6 +325,9 @@ function PlaygroundSession({
     } else if (polling || runMutation.isPending) {
         compileState = "running";
         compileSummary = attempt ? "Compiling…" : "Waiting for the model…";
+    } else if (finished) {
+        compileState = "skipped";
+        compileSummary = "Not reached";
     }
 
     // Run
@@ -352,6 +358,9 @@ function PlaygroundSession({
     } else if (finished && run.status !== "passed" && attempt) {
         runState = "failed";
         runSummary = "Did not run";
+    } else if (finished) {
+        runState = "skipped";
+        runSummary = "Not reached";
     }
 
     // Results
@@ -624,6 +633,7 @@ export default function PlaygroundPage() {
         key: string;
         runId: number | null;
     }>({ key: sessionKey, runId: null });
+    if (current.key !== sessionKey) setCurrent({ key: sessionKey, runId: null });
     const runId = current.key === sessionKey ? current.runId : null;
     const run = useRun(runId).data;
 
