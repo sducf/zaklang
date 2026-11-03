@@ -5,9 +5,8 @@ use std::{
     process::ExitCode,
 };
 use zakc::{
-    compile,
     error::{CompilerError, ErrorContext},
-    transpiler::transpile,
+    zak_check,
 };
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -17,6 +16,7 @@ enum Emit {
     PythonAst,
     Check,
 }
+
 #[derive(Parser)]
 #[command(
     name = "zakc",
@@ -36,23 +36,32 @@ struct Args {
 fn load(path: &Path) -> Result<String, CompilerError> {
     if path == Path::new("-") {
         let mut source = String::new();
+
         io::stdin()
             .read_to_string(&mut source)
             .trace_ctx("reading stdin")?;
+
         Ok(source)
     } else {
         std::fs::read_to_string(path).trace_ctx(format!("reading {}", path.display()))
     }
 }
+
+// Recursive function to gather the path location of every file in a dir
+// Note: "path" must be a directory
 fn collect(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), CompilerError> {
     if path.is_dir() {
         let mut entries = std::fs::read_dir(path)
             .trace()?
             .collect::<Result<Vec<_>, _>>()
             .trace()?;
+
         entries.sort_by_key(|entry| entry.path());
+
         for entry in entries {
             let path = entry.path();
+
+            // We only read .zak files, ignore others
             if path.is_dir() || path.extension().is_some_and(|ext| ext == "zak") {
                 collect(&path, files)?;
             }
@@ -60,34 +69,42 @@ fn collect(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), CompilerError> {
     } else {
         files.push(path.to_owned());
     }
+
     Ok(())
 }
 fn main() -> ExitCode {
     let args = Args::parse();
     let mut files = vec![];
+
     for path in &args.paths {
         if let Err(error) = collect(path, &mut files) {
             eprintln!("{error}");
             return ExitCode::FAILURE;
         }
     }
+
+    // We're using ExitCode instead of CompilerError type because we
+    // did not compile anything yet
     if files.is_empty() {
         eprintln!("No .zak files found");
         return ExitCode::from(2);
     }
+
     let mut failed = false;
     let mut reports = vec![];
+
     for path in files {
         let outcome = (|| {
             let source = load(&path).map_err(|e| vec![e])?;
-            let checked = compile(&source)?;
+            let checked = zak_check(&source)?;
             let output = match args.emit {
                 Emit::ZakAst => serde_json::to_string_pretty(checked.syntax())
                     .trace()
                     .map_err(|e| vec![e])?,
                 Emit::Check => String::new(),
                 Emit::Python | Emit::PythonAst => {
-                    let generated = transpile(&checked).map_err(|e| vec![e])?;
+                    let generated = checked.transpile().map_err(|e| vec![e])?;
+
                     if matches!(args.emit, Emit::PythonAst) {
                         format!("{:#?}", generated.python_ast)
                     } else {
@@ -95,14 +112,19 @@ fn main() -> ExitCode {
                     }
                 }
             };
+
             Ok::<_, Vec<CompilerError>>(output)
         })();
+
         match outcome {
             Ok(output) => {
                 if args.json {
-                    reports.push(
-                        serde_json::json!({"path":path,"ok":true,"output":output,"errors":[]}),
-                    );
+                    reports.push(serde_json::json!({
+                        "path": path,
+                        "ok": true,
+                        "output": output,
+                        "errors": []
+                    }));
                 } else if matches!(args.emit, Emit::Check) {
                     println!("{}: OK", path.display());
                 } else {
@@ -111,8 +133,13 @@ fn main() -> ExitCode {
             }
             Err(errors) => {
                 failed = true;
+
                 if args.json {
-                    reports.push(serde_json::json!({"path":path,"ok":false,"errors":errors}));
+                    reports.push(serde_json::json!({
+                        "path": path,
+                        "ok": false,
+                        "errors": errors
+                    }));
                 } else {
                     for error in errors {
                         eprintln!("{}:{error}", path.display());
@@ -121,9 +148,11 @@ fn main() -> ExitCode {
             }
         }
     }
+
     if args.json {
         println!("{}", serde_json::Value::Array(reports));
     }
+
     if failed {
         ExitCode::FAILURE
     } else {

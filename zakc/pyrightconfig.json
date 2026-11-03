@@ -1,0 +1,8 @@
+{
+  "include": ["tests", "zakc.pyi", "compare.py", "benchmark.py"],
+  "extraPaths": [".", ".."],
+  "venvPath": "..",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "standard"
+}

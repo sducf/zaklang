@@ -13,18 +13,16 @@ import sys
 
 import pytest
 
-from compiler.src import compile, transpile
+import zakc
 
 ROOT = Path(__file__).resolve().parents[2]
-FIXTURES = sorted((ROOT / 'compiler/tests/conformance').glob('*.zak'))
+FIXTURES = sorted((ROOT / 'zakc/tests/conformance').glob('*.zak'))
 REFERENCES = sorted((ROOT / 'zakbench/tasks').glob('*/reference.zak'))
 
 
 def python_source(path):
     """Load and transpile a fixture; the parent process never executes its output."""
-    result = compile(path.read_text(encoding='utf-8'))
-    assert result.ok and result.ast is not None, result.errors
-    return transpile(result.ast)
+    return zakc.zak_transpile(path.read_text(encoding='utf-8')).source
 
 
 @pytest.mark.parametrize('path', FIXTURES + REFERENCES, ids=lambda p: str(p.relative_to(ROOT)))

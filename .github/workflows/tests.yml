@@ -2,7 +2,10 @@
 #
 # Run each job locally from the repository root, in a Python 3.12 virtual environment:
 #   compiler:   pip install -r compiler/requirements-dev.txt
-#               python -m pytest compiler/tests -m "not docker"
+#               cargo test --manifest-path zakc/Cargo.toml
+#               PYO3_BUILD_EXTENSION_MODULE=1 cargo build --manifest-path zakc/Cargo.toml --features python --lib
+#               mkdir -p zakc/target/python && cp zakc/target/debug/libzakc.so zakc/target/python/zakc.so
+#               PYTHONPATH="$PWD/zakc/target/python:$PWD" python -m pytest -c zakc/pytest.ini zakc/tests -m "not docker"
 #   zakbench:   pip install -r compiler/requirements.txt httpx
 #               python -m unittest discover -s zakbench/tests -t .
 #               for f in zakbench/tasks/*/task.json zakbench/tasks/*/hidden_tests.json; do python -m json.tool "$f" > /dev/null || exit 1; done
@@ -37,8 +40,19 @@ jobs:
           cache: pip
           cache-dependency-path: compiler/requirements*.txt
       - run: pip install -r compiler/requirements-dev.txt
+      - name: Run the native zakc tests
+        run: cargo test --manifest-path zakc/Cargo.toml
+      - name: Build the zakc Python extension
+        env:
+          PYO3_PYTHON: python
+          PYO3_BUILD_EXTENSION_MODULE: "1"
+        run: |
+          cargo build --manifest-path zakc/Cargo.toml --features python --lib
+          mkdir -p zakc/target/python
+          cp zakc/target/debug/libzakc.so zakc/target/python/zakc.so
       # The docker marker leaves out the conformance tests that run the real Docker sandbox.
-      - run: python -m pytest compiler/tests -m "not docker"
+      - name: Run the zakc Python tests
+        run: PYTHONPATH="$PWD/zakc/target/python:$PWD" python -m pytest -c zakc/pytest.ini zakc/tests -m "not docker"
 
   zakbench:
     runs-on: ubuntu-latest

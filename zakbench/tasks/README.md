@@ -161,9 +161,10 @@ prompt.
   library. Every task has one (SD-37).
 - `reference.zak` is a hand-written Zak solution with the same signature,
   written against `spec/zak-core-v0.1.md`. Every task has one (SD-35 for the
-  three sample tasks, SD-43 for the rest). Grammar checks live in
-  `compiler/tests/conformance`, and SD-34's corpus test runs the transpiled
-  references against their hidden tests.
+  three sample tasks, SD-43 for the rest). Native AST and signature checks live in
+  `zakc/tests/fixtures.rs`; the fixtures are in `zakc/tests/conformance`, and
+  `zakc/tests/test_transpiler_corpus.py` runs native-transpiled references
+  against their hidden tests.
 
 ### check_references.py
 
