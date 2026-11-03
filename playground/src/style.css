@@ -116,7 +116,7 @@ p {
 .brand {
     display: flex;
     align-items: center;
-    gap: 11px;
+    gap: 7.75px;
     padding: 0 10px;
     font-size: 22px;
     font-weight: 650;
@@ -1768,7 +1768,7 @@ td {
     }
     .brand {
         justify-content: flex-start;
-        gap: 8px;
+        gap: 6.5px;
         font-size: 18px;
     }
     .brand-mark {
