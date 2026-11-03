@@ -47,3 +47,8 @@ AGENTS.md
 # Generated ZakBench run results
 zakbench/results/*
 !zakbench/results/.gitkeep
+
+# Node.js / Railway Function dependencies
+.env.*
+!.env.example
+!railway/package-lock.json

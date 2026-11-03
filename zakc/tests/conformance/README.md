@@ -39,6 +39,14 @@ PYTHONPATH="$PWD/zakc/target/python:$PWD" \
   .venv/bin/python -m pytest -c zakc/pytest.ini zakc/tests/conformance -q
 ```
 
+These tests have the `docker` marker. CI has no Docker, so it runs the other
+zakc tests with `-m "not docker"`. Do the same locally without Docker:
+
+```sh
+PYTHONPATH="$PWD/zakc/target/python:$PWD" \
+  .venv/bin/python -m pytest -c zakc/pytest.ini zakc/tests -q -m "not docker"
+```
+
 `test_conformance.py` uses the native `zakc.zak_transpile` binding and checks
 emitted Python against Python 3.12 grammar compatibility. It executes each
 of the 15 fixture programs through `sandbox.runner.execute_program` and
