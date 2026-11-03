@@ -4,7 +4,13 @@ import { Link, useSearchParams } from "react-router";
 import ArtifactDialog from "@/components/ArtifactDialog";
 import Icon from "@/components/Icon";
 import { ApiError } from "@/lib/api";
-import { runQueryOptions, useRun, useRuns, useTasks } from "@/lib/benchmark";
+import {
+    runQueryOptions,
+    terminalStatuses,
+    useRun,
+    useRuns,
+    useTasks,
+} from "@/lib/benchmark";
 import type {
     Attempt,
     CompilerError,
@@ -146,11 +152,18 @@ export default function ExplorerPage() {
         setExporting(true);
         setExportError(null);
         try {
-            const full = await Promise.all(
-                filtered.map((run) =>
-                    queryClient.ensureQueryData(runQueryOptions(run.id)),
-                ),
-            );
+            // Reuse cached details only for finished runs, and load the rest a few at a time.
+            const full: Run[] = [];
+            for (let start = 0; start < filtered.length; start += 6) {
+                const batch = filtered.slice(start, start + 6).map((run) => {
+                    const options = runQueryOptions(run.id);
+                    const cached = queryClient.getQueryData(options.queryKey);
+                    return cached && terminalStatuses.has(cached.status)
+                        ? cached
+                        : queryClient.fetchQuery(options);
+                });
+                full.push(...(await Promise.all(batch)));
+            }
             downloadCsv(
                 [
                     [
