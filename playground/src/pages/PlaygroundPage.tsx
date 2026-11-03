@@ -67,7 +67,7 @@ function PageHead({ children }: { children?: ReactNode }) {
 
 function Stat({ label, children }: { label: string; children: ReactNode }) {
     return (
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-1">
             <span className="label">{label}</span>
             <span className="font-medium">{children}</span>
         </div>
@@ -91,7 +91,7 @@ function RunBar({ run }: { run: Run | undefined }) {
                 )}
             </Stat>
             <Stat label="Attempts">{run ? run.attempts_used : "–"}</Stat>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1">
                 <span className="label">Total tokens</span>
                 <span className="text-xl font-medium">
                     {run ? run.total_tokens.toLocaleString() : "–"}
@@ -120,7 +120,7 @@ function CompileErrors({
                         key={i}
                         className="overflow-hidden rounded-md border border-border-error bg-surface-page"
                     >
-                        <div className="flex items-center gap-2 border-b border-border-default px-4 py-2.5 font-mono font-medium text-text-error">
+                        <div className="flex items-center gap-2 border-b border-border-default px-4 py-3 font-mono font-medium text-text-error">
                             <Icon name="alert" />
                             {error.code} at {error.line}:{error.col}{" "}
                             {error.message}
@@ -149,7 +149,7 @@ function TestMeter({ passed, total }: { passed: number; total: number }) {
             {Array.from({ length: total }, (_, i) => (
                 <span
                     key={i}
-                    className={`h-2 flex-1 animate-rise rounded-full ${
+                    className={`h-2 flex-1 animate-rise rounded-sm ${
                         i < passed ? "bg-surface-action" : "bg-surface-raised"
                     }`}
                     style={{ animationDelay: `${Math.min(i * 30, 300)}ms` }}
@@ -159,20 +159,60 @@ function TestMeter({ passed, total }: { passed: number; total: number }) {
     );
 }
 
+/** Title, prompt, signature and inputs for the selected task. */
+function TaskDetails({ task }: { task: Task }) {
+    return (
+        <div className="grid grid-cols-[minmax(0,1fr)_260px] gap-6 border-t border-border-default pt-4 max-md:grid-cols-1">
+            <div>
+                <h3 className="mb-1.5 text-xl font-semibold tracking-tight">
+                    {task.title}
+                </h3>
+                <p className="mb-3 max-w-[70ch] leading-[22px] text-text-secondary">
+                    {task.prompt}
+                </p>
+                <code className="inline-block rounded-sm bg-surface-page px-2 py-1 text-[13px] leading-5 text-code-text">
+                    {signature(task)}
+                </code>
+            </div>
+            <div className="flex flex-col gap-2">
+                <span className="label">Inputs</span>
+                {task.inputs.map((input) => (
+                    <div
+                        key={input.name}
+                        className="flex justify-between gap-3 border-b border-border-default py-2 font-mono text-[13px] leading-5"
+                    >
+                        <span className="text-text-secondary">
+                            {input.name}
+                        </span>
+                        <span>{input.type}</span>
+                    </div>
+                ))}
+                <div className="flex justify-between gap-3 border-b border-border-default py-2 font-mono text-[13px] leading-5">
+                    <span className="text-text-secondary">
+                        returns
+                    </span>
+                    <span>{task.output_type}</span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function PlaygroundSession({
     task,
     language,
-    controls,
+    runId,
+    setRunId,
 }: {
     task: Task;
     language: Language;
-    controls: ReactNode;
+    runId: number | null;
+    setRunId: (id: number | null) => void;
 }) {
     const queryClient = useQueryClient();
     const isZak = language === "zak";
     // null means "not edited": the editor shows the model's latest output.
     const [edited, setEdited] = useState<string | null>(null);
-    const [runId, setRunId] = useState<number | null>(null);
     const [compiled, setCompiled] = useState<CompileResponse | null>(null);
     const [artifact, setArtifact] = useState(false);
 
@@ -186,13 +226,7 @@ function PlaygroundSession({
         mutationFn: compileZak,
         onSuccess: setCompiled,
     });
-    const runMutation = useMutation({
-        mutationFn: createRun,
-        onSuccess: (created) => {
-            queryClient.setQueryData(["run", created.id], created);
-            setRunId(created.id);
-        },
-    });
+    const runMutation = useMutation({ mutationFn: createRun });
 
     const busy = polling || runMutation.isPending || compileMutation.isPending;
     const source = edited ?? attempt?.completion_text ?? "";
@@ -225,17 +259,27 @@ function PlaygroundSession({
         setCompiled(null);
         compileMutation.reset();
         // Without source the model generates a solution (PRD F8).
-        runMutation.mutate({
-            task_id: task.id,
-            language,
-            ...(custom ? { source: edited } : {}),
-        });
+        runMutation.mutate(
+            {
+                task_id: task.id,
+                language,
+                ...(custom ? { source: edited } : {}),
+            },
+            {
+                // Per-call callbacks skip a session that was left mid-request.
+                onSuccess: (created) => {
+                    queryClient.setQueryData(["run", created.id], created);
+                    setRunId(created.id);
+                },
+            },
+        );
     }
 
     // Code
     const codeState: StageState = run || compiled ? "done" : "active";
 
     // Compile
+    const compileErrors = compiled ? compiled.errors : attempt?.compile_errors;
     let compileState: StageState = "waiting";
     let compileSummary: ReactNode = "Waits for code";
     let compileBody: ReactNode = null;
@@ -282,13 +326,20 @@ function PlaygroundSession({
 
     // Run
     const outcome = attempt?.exec_outcome;
-    const tests =
+    const testCount =
         attempt?.tests_total != null
-            ? `${attempt.tests_passed ?? 0} of ${attempt.tests_total} passed`
+            ? { passed: attempt.tests_passed ?? 0, total: attempt.tests_total }
             : null;
+    const tests = testCount
+        ? `${testCount.passed} of ${testCount.total} passed`
+        : null;
     const readyToRun = !isZak || attempt?.compile_ok === true;
     let runState: StageState = "waiting";
-    let runSummary: ReactNode = isZak ? "Waits for Compile" : "Waits for code";
+    let runSummary: ReactNode = !isZak
+        ? "Waits for code"
+        : compiled?.ok
+          ? "Waits for a run"
+          : "Waits for Compile";
     if (outcome === "pass") {
         runState = "done";
         runSummary = "Hidden tests in the sandbox";
@@ -315,10 +366,6 @@ function PlaygroundSession({
                 }
             }}
         >
-            <PageHead>
-                <RunBar run={run} />
-            </PageHead>
-
             {requestError && (
                 <p
                     className="mb-4 rounded-md border border-border-error px-4 py-3 text-text-error"
@@ -329,48 +376,6 @@ function PlaygroundSession({
             )}
 
             <div className="flex flex-col">
-                <Stage
-                    id="stage-task"
-                    title="Task"
-                    state="done"
-                    meta={<span>{task.category}</span>}
-                >
-                    {controls}
-                    <div className="grid grid-cols-[minmax(0,1fr)_260px] gap-6 border-t border-border-default pt-4 max-md:grid-cols-1">
-                        <div>
-                            <h3 className="mb-1.5 text-xl font-semibold tracking-tight">
-                                {task.title}
-                            </h3>
-                            <p className="mb-3 max-w-[70ch] leading-[22px] text-text-secondary">
-                                {task.prompt}
-                            </p>
-                            <code className="inline-block rounded-sm bg-surface-page px-2 py-1 text-[13px] leading-5 text-code-text">
-                                {signature(task)}
-                            </code>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                            <span className="label">Inputs</span>
-                            {task.inputs.map((input) => (
-                                <div
-                                    key={input.name}
-                                    className="flex justify-between gap-3 border-b border-border-default py-2 font-mono text-[13px] leading-5"
-                                >
-                                    <span className="text-text-secondary">
-                                        {input.name}
-                                    </span>
-                                    <span>{input.type}</span>
-                                </div>
-                            ))}
-                            <div className="flex justify-between gap-3 border-b border-border-default py-2 font-mono text-[13px] leading-5">
-                                <span className="text-text-secondary">
-                                    returns
-                                </span>
-                                <span>{task.output_type}</span>
-                            </div>
-                        </div>
-                    </div>
-                </Stage>
-
                 <Stage
                     id="stage-code"
                     title="Code"
@@ -464,15 +469,8 @@ function PlaygroundSession({
                     state={compileState}
                     summary={compileSummary}
                     meta={
-                        compileState === "failed" &&
-                        (compiled?.errors ?? attempt?.compile_errors)?.length ? (
-                            <span>
-                                {plural(
-                                    (compiled?.errors ?? attempt?.compile_errors ?? [])
-                                        .length,
-                                    "error",
-                                )}
-                            </span>
+                        compileState === "failed" && compileErrors?.length ? (
+                            <span>{plural(compileErrors.length, "error")}</span>
                         ) : undefined
                     }
                 >
@@ -488,11 +486,11 @@ function PlaygroundSession({
                 >
                     {runState === "running" && (
                         <div
-                            className="relative h-1 overflow-hidden rounded-full bg-surface-raised"
+                            className="relative h-1 overflow-hidden rounded-sm bg-surface-raised"
                             role="progressbar"
                             aria-label="Running tests"
                         >
-                            <span className="absolute inset-y-0 left-0 w-[30%] animate-slide rounded-full bg-text-action" />
+                            <span className="absolute inset-y-0 left-0 w-[30%] animate-slide bg-surface-action" />
                         </div>
                     )}
                 </Stage>
@@ -509,8 +507,8 @@ function PlaygroundSession({
                             <div className="flex flex-wrap items-center gap-3">
                                 <StatusBadge status={run.status} solid />
                                 <h3 className="text-xl font-semibold tracking-tight">
-                                    {attempt?.tests_total != null
-                                        ? `${attempt.tests_passed ?? 0} of ${attempt.tests_total} hidden tests passed`
+                                    {testCount
+                                        ? `${testCount.passed} of ${testCount.total} hidden tests passed`
                                         : attempt?.exec_outcome
                                           ? outcomeLabels[attempt.exec_outcome]
                                           : "No tests ran"}
@@ -519,7 +517,7 @@ function PlaygroundSession({
                             <div className="grid grid-cols-4 rounded-md border border-border-default max-md:grid-cols-2">
                                 <button
                                     type="button"
-                                    className="group flex flex-col items-start gap-1 rounded-md px-4 py-3 text-left transition-colors hover:bg-surface-hover"
+                                    className="group flex flex-col items-start gap-1 rounded-md px-4 py-3 text-left hover:bg-surface-hover"
                                     onClick={() => setArtifact(true)}
                                 >
                                     <span className="label">Total tokens</span>
@@ -547,19 +545,15 @@ function PlaygroundSession({
                                 <div className="flex flex-col gap-1 border-l border-border-default px-4 py-3 max-md:border-t">
                                     <span className="label">Tests</span>
                                     <span className="text-xl font-medium">
-                                        {attempt?.tests_total != null
-                                            ? `${attempt.tests_passed ?? 0} / ${attempt.tests_total}`
+                                        {testCount
+                                            ? `${testCount.passed} / ${testCount.total}`
                                             : "–"}
                                     </span>
                                 </div>
                             </div>
-                            {attempt?.tests_total != null &&
-                                attempt.tests_total > 0 && (
-                                    <TestMeter
-                                        passed={attempt.tests_passed ?? 0}
-                                        total={attempt.tests_total}
-                                    />
-                                )}
+                            {testCount && testCount.total > 0 && (
+                                <TestMeter {...testCount} />
+                            )}
                             <span className="text-text-tertiary">
                                 Hidden tests are never sent to this browser.{" "}
                                 <Link to="/docs">How it works</Link>
@@ -568,8 +562,6 @@ function PlaygroundSession({
                     )}
                 </Stage>
             </div>
-
-            <RecentRuns taskId={task.id} errorText={errorText} />
 
             {artifact && run && (
                 <ArtifactDialog
@@ -626,105 +618,115 @@ export default function PlaygroundPage() {
     const task = useTask(taskId);
     const language: Language =
         params.get("lang") === "python" ? "python" : "zak";
+    // The current run belongs to one task and language; switching either clears it.
+    const sessionKey = `${taskId}-${language}`;
+    const [current, setCurrent] = useState<{
+        key: string;
+        runId: number | null;
+    }>({ key: sessionKey, runId: null });
+    const runId = current.key === sessionKey ? current.runId : null;
+    const run = useRun(runId).data;
 
     function select(nextTaskId: string, lang: Language) {
         setParams({ task: nextTaskId, lang });
     }
 
     const loadError = tasks.error ?? task.error;
-
-    const controls = (
-        <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] items-end gap-3 max-md:grid-cols-1">
-            <label className="flex min-w-0 flex-col gap-1.5">
-                <span className="label">Task</span>
-                <span className="relative">
-                    <select
-                        className="field"
-                        value={taskId ?? ""}
-                        disabled={!tasks.data}
-                        onChange={(event) => select(event.target.value, language)}
-                    >
-                        {tasks.data?.map((item) => (
-                            <option key={item.id} value={item.id}>
-                                {item.title}
-                            </option>
-                        ))}
-                    </select>
-                    <Icon
-                        name="chevron-down"
-                        className="pointer-events-none absolute top-3 right-3 text-icon-secondary"
-                    />
-                </span>
-            </label>
-            <label className="flex min-w-0 flex-col gap-1.5">
-                <span className="label">Model</span>
-                <span className="relative">
-                    <select className="field" defaultValue="default">
-                        <option value="default">{defaultModel}</option>
-                    </select>
-                    <Icon
-                        name="chevron-down"
-                        className="pointer-events-none absolute top-3 right-3 text-icon-secondary"
-                    />
-                </span>
-            </label>
-            <div className="flex flex-col gap-1.5">
-                <span className="label" id="language-label">
-                    Language
-                </span>
-                <div
-                    className="inline-flex h-10 items-center gap-0.5 rounded-md border border-border-default bg-surface-page p-0.5"
-                    role="group"
-                    aria-labelledby="language-label"
-                >
-                    {(["zak", "python"] as const).map((lang) => (
-                        <button
-                            key={lang}
-                            type="button"
-                            aria-pressed={language === lang}
-                            className={`h-full rounded-sm px-4 font-medium transition-colors max-md:flex-1 ${
-                                language === lang
-                                    ? "bg-surface-accent-subtle text-text-primary shadow-[inset_0_0_0_1px_var(--color-border-action)]"
-                                    : "text-text-secondary hover:text-text-primary"
-                            }`}
-                            disabled={!taskId}
-                            onClick={() => taskId && select(taskId, lang)}
-                        >
-                            {lang === "zak" ? "Zak" : "Python"}
-                        </button>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-
-    if (task.data && !loadError) {
-        return (
-            <PlaygroundSession
-                key={`${task.data.id}-${language}`}
-                task={task.data}
-                language={language}
-                controls={controls}
-            />
-        );
-    }
+    const ready = task.data !== undefined && !loadError;
+    const chevron =
+        "pointer-events-none absolute top-3.5 right-3 text-icon-secondary";
 
     return (
         <>
-            <PageHead />
-            <Stage id="stage-task" title="Task" state="active" last>
-                {controls}
-                {loadError ? (
-                    <p className="text-text-error" role="alert">
-                        {errorText(loadError)}
-                    </p>
-                ) : (
-                    <div className="flex items-center gap-2 text-text-secondary">
-                        <Icon name="clock" />
-                        Loading tasks…
+            <PageHead>{ready && <RunBar run={run} />}</PageHead>
+            <div className="flex flex-col">
+                <Stage
+                    id="stage-task"
+                    title="Task"
+                    state={ready ? "done" : "active"}
+                    meta={ready ? <span>{task.data.category}</span> : undefined}
+                    last={!ready}
+                >
+                    <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] items-end gap-3 max-md:grid-cols-1">
+                        <label className="flex min-w-0 flex-col gap-1.5">
+                            <span className="label">Task</span>
+                            <span className="relative">
+                                <select
+                                    className="field"
+                                    value={taskId ?? ""}
+                                    disabled={!tasks.data}
+                                    onChange={(event) =>
+                                        select(event.target.value, language)
+                                    }
+                                >
+                                    {tasks.data?.map((item) => (
+                                        <option key={item.id} value={item.id}>
+                                            {item.title}
+                                        </option>
+                                    ))}
+                                </select>
+                                <Icon name="chevron-down" className={chevron} />
+                            </span>
+                        </label>
+                        <label className="flex min-w-0 flex-col gap-1.5">
+                            <span className="label">Model</span>
+                            <span className="relative">
+                                <select className="field" defaultValue="default">
+                                    <option value="default">{defaultModel}</option>
+                                </select>
+                                <Icon name="chevron-down" className={chevron} />
+                            </span>
+                        </label>
+                        <div className="flex flex-col gap-1.5">
+                            <span className="label" id="language-label">
+                                Language
+                            </span>
+                            <div
+                                className="segmented"
+                                role="group"
+                                aria-labelledby="language-label"
+                            >
+                                {(["zak", "python"] as const).map((lang) => (
+                                    <button
+                                        key={lang}
+                                        type="button"
+                                        aria-pressed={language === lang}
+                                        className="max-md:flex-1"
+                                        disabled={!taskId}
+                                        onClick={() =>
+                                            taskId && select(taskId, lang)
+                                        }
+                                    >
+                                        {lang === "zak" ? "Zak" : "Python"}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
+                    {loadError ? (
+                        <p className="text-text-error" role="alert">
+                            {errorText(loadError)}
+                        </p>
+                    ) : ready ? (
+                        <TaskDetails task={task.data} />
+                    ) : (
+                        <div className="flex items-center gap-2 text-text-secondary">
+                            <Icon name="clock" />
+                            Loading tasks…
+                        </div>
+                    )}
+                </Stage>
+                {ready && (
+                    <PlaygroundSession
+                        key={sessionKey}
+                        task={task.data}
+                        language={language}
+                        runId={runId}
+                        setRunId={(id) => setCurrent({ key: sessionKey, runId: id })}
+                    />
                 )}
-            </Stage>
+            </div>
+            {ready && <RecentRuns taskId={task.data.id} errorText={errorText} />}
         </>
     );
 }

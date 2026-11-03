@@ -16,10 +16,10 @@ export function ZakMark({ className, title }: LogoProps) {
                 width="100"
                 height="100"
                 rx="10"
-                className="fill-green-500"
+                className="fill-surface-brand"
             />
             <path
-                className="fill-neutral-0"
+                className="fill-icon-on-action"
                 d="M43.556 84.336 57.108 69.86H44.04V65.504H63.752V70.168L50.024 84.644H64.104V89H43.556ZM68.048 57.76H73.68V76.108L83.316 65.504H90.268L81.072 75.272L90.576 89H84.24L77.376 78.616L73.68 82.532V89H68.048Z"
             />
         </svg>

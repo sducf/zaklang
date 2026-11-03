@@ -164,7 +164,7 @@ export default function DocsPage() {
                         <li key={section.id}>
                             <a
                                 href={`#${section.id}`}
-                                className="flex h-9 items-center text-text-secondary no-underline hover:text-text-primary"
+                                className="flex h-11 items-center text-text-secondary no-underline hover:text-text-primary"
                             >
                                 {section.label}
                             </a>

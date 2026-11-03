@@ -157,6 +157,7 @@ export default function CodeEditor({
                             autoCapitalize="off"
                             autoComplete="off"
                             value={value}
+                            placeholder={placeholder}
                             disabled={disabled}
                             onChange={(event) => onChange?.(event.target.value)}
                             onKeyDown={handleTab}
@@ -171,7 +172,7 @@ export default function CodeEditor({
                                     lineNumbers.current.scrollTop =
                                         event.currentTarget.scrollTop;
                             }}
-                            className={`${codeLayer} resize-none bg-transparent text-transparent caret-text-action [-webkit-text-fill-color:transparent] focus-visible:outline-offset-[-2px] disabled:cursor-not-allowed`}
+                            className={`${codeLayer} resize-none bg-transparent text-transparent caret-text-action [-webkit-text-fill-color:transparent] placeholder:text-transparent focus-visible:outline-offset-[-2px] disabled:cursor-not-allowed`}
                         />
                         <span id={instructionId} className="sr-only">
                             Tab inserts two spaces. Shift+Tab leaves the editor.

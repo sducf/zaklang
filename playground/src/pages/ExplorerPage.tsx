@@ -206,7 +206,7 @@ export default function ExplorerPage() {
     const cell = "h-13 px-4 whitespace-nowrap";
     const select = "relative max-md:w-full";
     const chevron =
-        "pointer-events-none absolute top-3 right-3 text-icon-secondary";
+        "pointer-events-none absolute top-3.5 right-3 text-icon-secondary";
 
     return (
         <>

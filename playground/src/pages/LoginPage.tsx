@@ -72,7 +72,7 @@ export default function LoginPage() {
                     </p>
                 </div>
                 <div
-                    className="flex h-10 items-center gap-0.5 rounded-md border border-border-default bg-surface-page p-0.5"
+                    className="segmented"
                     role="group"
                     aria-label="Account mode"
                 >
@@ -80,11 +80,7 @@ export default function LoginPage() {
                         <button
                             key={item.value}
                             type="button"
-                            className={`h-full flex-1 rounded-sm px-3 font-medium transition-colors ${
-                                mode === item.value
-                                    ? "bg-surface-accent-subtle text-text-primary shadow-[inset_0_0_0_1px_var(--color-border-action)]"
-                                    : "text-text-secondary hover:text-text-primary"
-                            }`}
+                            className="flex-1"
                             aria-pressed={mode === item.value}
                             onClick={() => {
                                 setMode(item.value);

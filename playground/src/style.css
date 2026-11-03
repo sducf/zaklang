@@ -50,6 +50,7 @@
     --color-surface-hover: var(--color-neutral-800);
     --color-surface-selected: var(--color-neutral-700);
     --color-surface-action: var(--color-green-500);
+    --color-surface-brand: var(--color-green-500);
     --color-surface-action-hover: var(--color-green-450);
     --color-surface-accent-subtle: var(--color-green-950);
     --color-surface-error: var(--color-red-600);
@@ -81,6 +82,7 @@
     --color-border-control-hover: var(--color-neutral-400);
     --color-border-action: var(--color-green-500);
     --color-border-focus: var(--color-green-300);
+    --color-border-selected: var(--color-green-300);
     --color-border-error: var(--color-red-400);
 
     /* code */
@@ -125,10 +127,12 @@
             transform: translateX(340%);
         }
     }
-    @keyframes fade {
-        from {
-            opacity: 0;
-        }
+}
+
+/* Used by the reduced-motion fallback, so it lives outside @theme. */
+@keyframes fade {
+    from {
+        opacity: 0;
     }
 }
 
@@ -203,11 +207,18 @@
         font-weight: 500;
         white-space: nowrap;
         text-decoration: none;
-        transition:
-            transform 160ms var(--ease-out),
-            background-color 150ms ease,
-            border-color 150ms ease,
-            color 150ms ease;
+        position: relative;
+        transition: transform 160ms var(--ease-out);
+    }
+    /* Tap targets reach 44px without growing the 40px control. */
+    .btn::before,
+    .segmented > button::before {
+        content: "";
+        position: absolute;
+        inset: -2px 0;
+    }
+    .segmented > button::before {
+        inset: -5px 0;
     }
     .btn:active:not(:disabled) {
         transform: scale(0.97);
@@ -247,14 +258,13 @@
 
     .field {
         width: 100%;
-        height: 40px;
+        height: 44px;
         padding: 0 12px;
         border: 1px solid var(--color-border-control);
         border-radius: var(--radius-md);
         background: var(--color-surface-field);
         color: var(--color-text-primary);
         appearance: none;
-        transition: border-color 150ms ease;
     }
     .field:hover:not(:disabled) {
         border-color: var(--color-border-control-hover);
@@ -292,6 +302,34 @@
         color: var(--color-text-error);
     }
 
+    /* Segmented toggle: the selected option uses the accent tint. */
+    .segmented {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        height: 44px;
+        padding: 4px;
+        border: 1px solid var(--color-border-control);
+        border-radius: var(--radius-md);
+        background: var(--color-surface-page);
+    }
+    .segmented > button {
+        position: relative;
+        height: 100%;
+        padding: 0 16px;
+        border-radius: var(--radius-sm);
+        font-weight: 500;
+        color: var(--color-text-secondary);
+    }
+    .segmented > button:hover:not(:disabled) {
+        color: var(--color-text-primary);
+    }
+    .segmented > button[aria-pressed="true"] {
+        background: var(--color-surface-accent-subtle);
+        color: var(--color-text-primary);
+        box-shadow: inset 0 0 0 1px var(--color-border-selected);
+    }
+
     .kbd {
         display: inline-flex;
         align-items: center;
@@ -322,7 +360,7 @@
         display: flex;
         justify-content: space-between;
         gap: 20px;
-        padding: 10px 0;
+        padding: 12px 0;
         border-bottom: 1px solid var(--color-border-default);
     }
     .facts dt {

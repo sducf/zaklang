@@ -45,13 +45,16 @@ function AccountMenu() {
         <div ref={root} className="relative ml-auto">
             <button
                 type="button"
-                className="flex h-11 items-center gap-2 rounded-md pr-2 pl-1.5 text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary max-md:px-1"
-                aria-label="Account menu"
-                aria-haspopup="menu"
+                className="flex h-11 items-center gap-2 rounded-md pr-2 pl-1.5 text-text-secondary hover:bg-surface-hover hover:text-text-primary max-md:px-1"
                 aria-expanded={open}
+                aria-controls="account-panel"
                 onClick={() => setOpen(!open)}
             >
-                <span className="grid size-7 place-items-center rounded-full bg-surface-selected text-xs font-medium text-text-primary">
+                <span className="sr-only">Account menu</span>
+                <span
+                    aria-hidden="true"
+                    className="grid size-7 place-items-center rounded-full bg-surface-selected text-xs font-medium text-text-primary"
+                >
                     {email.charAt(0).toUpperCase()}
                 </span>
                 <span className="max-w-48 truncate max-md:hidden">
@@ -61,7 +64,7 @@ function AccountMenu() {
             </button>
             {open && (
                 <div
-                    role="menu"
+                    id="account-panel"
                     className="menu absolute top-full right-0 z-20 mt-2 w-64 rounded-lg border border-border-default bg-surface-raised p-1"
                 >
                     <div className="px-3 py-2">
@@ -72,7 +75,6 @@ function AccountMenu() {
                     </div>
                     <button
                         type="button"
-                        role="menuitem"
                         className="flex h-11 w-full items-center rounded-md px-3 text-left text-text-primary hover:bg-surface-selected"
                         onClick={() => {
                             setOpen(false);

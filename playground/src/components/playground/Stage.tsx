@@ -68,7 +68,7 @@ export default function Stage({
                 </span>
                 {!last && (
                     <span
-                        className={`-mb-5 mt-1 w-0.5 flex-1 rounded-full ${
+                        className={`-mb-5 mt-1 w-0.5 flex-1 ${
                             state === "done"
                                 ? "bg-surface-action"
                                 : "bg-border-default"
