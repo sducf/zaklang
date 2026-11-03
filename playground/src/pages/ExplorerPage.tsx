@@ -162,7 +162,12 @@ export default function ExplorerPage() {
                         ? cached
                         : queryClient.fetchQuery(options);
                 });
-                full.push(...(await Promise.all(batch)));
+                // A run can finish between the list refresh and the export.
+                full.push(
+                    ...(await Promise.all(batch)).filter(
+                        (run) => !outcome || run.status === outcome,
+                    ),
+                );
             }
             downloadCsv(
                 [
