@@ -3,7 +3,7 @@
 # Run each job locally from the repository root, in a Python 3.12 virtual environment:
 #   compiler:   pip install -r compiler/requirements-dev.txt
 #               python -m pytest compiler/tests -m "not docker"
-#   zakbench:   pip install -r compiler/requirements.txt
+#   zakbench:   pip install -r compiler/requirements.txt httpx
 #               python -m unittest discover -s zakbench/tests -t .
 #               for f in zakbench/tasks/*/task.json zakbench/tasks/*/hidden_tests.json; do python -m json.tool "$f" > /dev/null || exit 1; done
 #               python -m compiler.src zakbench/tasks
@@ -52,7 +52,7 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: compiler/requirements*.txt
-      - run: pip install -r compiler/requirements.txt
+      - run: pip install -r compiler/requirements.txt httpx
       - name: Run the ZakBench tests
         run: python -m unittest discover -s zakbench/tests -t .
       - name: Check that every task.json and hidden_tests.json parses
