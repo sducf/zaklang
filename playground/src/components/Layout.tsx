@@ -24,7 +24,7 @@ function Layout() {
             </a>
             <aside className="sidebar">
                 <Link to="/playground" className="brand" aria-label="zaklang">
-                    <ZakMark small className="brand-mark" />
+                    <ZakMark className="brand-mark" />
                     <span>
                         <ZakWordmark className="brand-wordmark" />
                         <span className="brand-version">v0.1</span>
