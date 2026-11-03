@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
 // Types mirror backend/api/schemas/benchmark.py (SD-30).
@@ -139,9 +139,9 @@ export function createRun(request: RunCreateRequest) {
     });
 }
 
-/** Poll a run every second until it reaches a terminal status. */
-export function useRun(runId: number | null) {
-    return useQuery({
+/** GET /runs/{id}, polled every second until the run reaches a terminal status. */
+export function runQueryOptions(runId: number | null) {
+    return queryOptions({
         queryKey: ["run", runId],
         queryFn: () => api<Run>(`/runs/${runId}`),
         enabled: runId !== null,
@@ -154,9 +154,18 @@ export function useRun(runId: number | null) {
     });
 }
 
+export function useRun(runId: number | null) {
+    return useQuery(runQueryOptions(runId));
+}
+
+/** The current user's runs, newest first. Re-checked while any run is unfinished. */
 export function useRuns() {
     return useQuery({
         queryKey: ["runs"],
         queryFn: () => api<RunListItem[]>("/runs"),
+        refetchInterval: (query) =>
+            query.state.data?.some((run) => !terminalStatuses.has(run.status))
+                ? 2000
+                : false,
     });
 }

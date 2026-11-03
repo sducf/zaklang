@@ -2033,3 +2033,34 @@ td {
         animation-duration: 0s !important;
     }
 }
+.attempt-card {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid #354d3c;
+}
+.attempt-card h3 {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+    font-size: 13px;
+}
+.attempt-card .artifact-facts {
+    margin: 12px 0;
+}
+.compile-errors {
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+}
+.compile-errors .compiler-error {
+    margin-bottom: 0;
+}
+.attempt-text {
+    margin-top: 10px;
+}
+.attempt-text summary {
+    cursor: pointer;
+    font-size: 11px;
+    color: #a3b9aa;
+    margin-bottom: 8px;
+}

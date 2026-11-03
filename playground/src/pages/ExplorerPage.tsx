@@ -1,78 +1,210 @@
 import { useState } from "react";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import ArtifactDialog from "@/components/ArtifactDialog";
-import CodeEditor from "@/components/CodeEditor";
 import Icon from "@/components/Icon";
-import { sampleRuns, tasks } from "@/lib/demo";
-import type { DemoRun } from "@/lib/demo";
-import { useDemoRuns } from "@/lib/run-store";
+import { ApiError } from "@/lib/api";
+import {
+    runQueryOptions,
+    terminalStatuses,
+    useRun,
+    useRuns,
+    useTasks,
+} from "@/lib/benchmark";
+import type {
+    Attempt,
+    CompilerError,
+    Language,
+    Run,
+    RunStatus,
+} from "@/lib/benchmark";
+
+const pageSize = 25;
+const languages: Language[] = ["zak", "python"];
+const outcomes: RunStatus[] = [
+    "passed",
+    "failed",
+    "error",
+    "timeout",
+    "running",
+    "queued",
+];
+
+/** API errors are shown as returned, prefixed with the HTTP status. */
+function errorText(error: unknown) {
+    if (error instanceof ApiError) return `HTTP ${error.status}: ${error.message}`;
+    return error instanceof Error ? error.message : String(error);
+}
+
+function compilerErrorText(error: CompilerError) {
+    return `${error.code} ${error.line}:${error.col} ${error.message}`;
+}
+
+function languageName(language: Language) {
+    return language === "zak" ? "Zak" : "Python";
+}
+
+function formatDate(iso: string | null) {
+    return iso ? new Date(iso).toLocaleString() : "–";
+}
+
+function formatCount(value: number | null) {
+    return value === null ? "–" : value.toLocaleString();
+}
+
+function formatLatency(ms: number | null) {
+    return ms === null ? "–" : `${(ms / 1000).toFixed(2)} s`;
+}
+
+function statusClass(status: RunStatus) {
+    if (status === "passed") return "success";
+    if (status === "queued" || status === "running") return "muted";
+    return "compiler-error";
+}
+
+function downloadCsv(rows: string[][], filename: string) {
+    const csv = rows
+        .map((row) =>
+            row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(","),
+        )
+        .join("\r\n");
+    const url = URL.createObjectURL(
+        new Blob([csv], { type: "text/csv;charset=utf-8;" }),
+    );
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+}
 
 export default function ExplorerPage() {
-    const localRuns = useDemoRuns();
+    const queryClient = useQueryClient();
     const [params, setParams] = useSearchParams();
-    const [taskId, setTaskId] = useState(tasks[0].id);
-    const [language, setLanguage] = useState("all");
-    const [dataset, setDataset] = useState("sample");
-    const [detail, setDetail] = useState<DemoRun | null>(null);
-    const task = tasks.find((item) => item.id === taskId)!;
-    const zak = sampleRuns.find(
-        (run) => run.taskId === taskId && run.language === "zak",
-    )!;
-    const python = sampleRuns.find(
-        (run) => run.taskId === taskId && run.language === "python",
-    )!;
-    const zakTotal = zak.promptTokens + zak.completionTokens;
-    const pythonTotal = python.promptTokens + python.completionTokens;
-    const selectedRun =
-        [...localRuns, ...sampleRuns].find(
-            (run) => run.id === params.get("run"),
-        ) ?? detail;
-    const displayedRuns = (
-        dataset === "sample" ? sampleRuns : localRuns
-    ).filter((run) => language === "all" || run.language === language);
+    const [limit, setLimit] = useState(pageSize);
+    const [exporting, setExporting] = useState(false);
+    const [exportError, setExportError] = useState<unknown>(null);
+    const runs = useRuns();
+    const tasks = useTasks();
 
-    function exportCsv() {
-        const rows = [
-            [
-                "id",
-                "task",
-                "language",
-                "model",
-                "seed",
-                "outcome",
-                "prompt_tokens",
-                "completion_tokens",
-                "total_tokens",
-                "created_at",
-                "data_source",
-            ],
-            ...displayedRuns.map((run) => [
-                run.id,
-                run.taskId,
-                run.language,
-                run.model,
-                String(run.seed),
-                run.passed ? "demo_passed" : "demo_failed",
-                String(run.promptTokens),
-                String(run.completionTokens),
-                String(run.promptTokens + run.completionTokens),
-                run.createdAt,
-                "demo_fixture",
-            ]),
-        ];
-        const csv = rows
-            .map((row) =>
-                row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(","),
-            )
-            .join("\r\n");
-        const url = URL.createObjectURL(
-            new Blob([csv], { type: "text/csv;charset=utf-8;" }),
+    const languageParam = params.get("lang");
+    const language = languages.find((item) => item === languageParam);
+    const outcomeParam = params.get("outcome");
+    const outcome = outcomes.find((item) => item === outcomeParam);
+    const taskId = params.get("task") || undefined;
+    const runParam = Number(params.get("run"));
+    const selectedRunId =
+        Number.isInteger(runParam) && runParam > 0 ? runParam : null;
+
+    const titles = new Map(
+        (tasks.data ?? []).map((item) => [item.id, item.title]),
+    );
+    const allRuns = [...(runs.data ?? [])].sort((a, b) => b.id - a.id);
+    const taskIds = [
+        ...new Set([
+            ...(tasks.data ?? []).map((item) => item.id),
+            ...allRuns.map((run) => run.task_id),
+        ]),
+    ];
+    const filtered = allRuns.filter(
+        (run) =>
+            (!language || run.language === language) &&
+            (!taskId || run.task_id === taskId) &&
+            (!outcome || run.status === outcome),
+    );
+    const visible = filtered.slice(0, limit);
+    // GET /runs has no tokens or dates, so each visible row loads its run.
+    const details = useQueries({
+        queries: visible.map((run) => runQueryOptions(run.id)),
+    });
+    const filtersActive = Boolean(language || taskId || outcome);
+
+    function setParam(key: string, value: string | null) {
+        setParams(
+            (current) => {
+                const next = new URLSearchParams(current);
+                if (value) next.set(key, value);
+                else next.delete(key);
+                return next;
+            },
+            { replace: key !== "run" },
         );
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = "zakbench-demo-runs.csv";
-        anchor.click();
-        URL.revokeObjectURL(url);
+    }
+
+    function setFilter(key: string, value: string) {
+        setLimit(pageSize);
+        setParam(key, value === "all" ? null : value);
+    }
+
+    function clearFilters() {
+        setLimit(pageSize);
+        setParams(
+            (current) => {
+                const next = new URLSearchParams(current);
+                ["lang", "task", "outcome"].forEach((key) => next.delete(key));
+                return next;
+            },
+            { replace: true },
+        );
+    }
+
+    async function exportCsv() {
+        setExporting(true);
+        setExportError(null);
+        try {
+            // Reuse cached details only for finished runs, and load the rest a few at a time.
+            const full: Run[] = [];
+            for (let start = 0; start < filtered.length; start += 6) {
+                const batch = filtered.slice(start, start + 6).map((run) => {
+                    const options = runQueryOptions(run.id);
+                    const cached = queryClient.getQueryData(options.queryKey);
+                    return cached && terminalStatuses.has(cached.status)
+                        ? cached
+                        : queryClient.fetchQuery(options);
+                });
+                // A run can finish between the list refresh and the export.
+                full.push(
+                    ...(await Promise.all(batch)).filter(
+                        (run) => !outcome || run.status === outcome,
+                    ),
+                );
+            }
+            downloadCsv(
+                [
+                    [
+                        "id",
+                        "task",
+                        "language",
+                        "model",
+                        "seed",
+                        "outcome",
+                        "prompt_tokens",
+                        "completion_tokens",
+                        "total_tokens",
+                        "created_at",
+                        "data_source",
+                    ],
+                    ...full.map((run) => [
+                        String(run.id),
+                        run.task_id,
+                        run.language,
+                        run.model_name,
+                        "", // The API does not record a seed yet.
+                        run.status,
+                        String(run.prompt_tokens_total),
+                        String(run.completion_tokens_total),
+                        String(run.total_tokens),
+                        run.started_at,
+                        "api",
+                    ]),
+                ],
+                "zakbench-runs.csv",
+            );
+        } catch (error) {
+            setExportError(error);
+        } finally {
+            setExporting(false);
+        }
     }
 
     return (
@@ -86,343 +218,470 @@ export default function ExplorerPage() {
                         Explorer<span className="title-dot">.</span>
                     </h1>
                     <p>
-                        Same task. Same model. Two languages. See the whole
-                        cost.
+                        Every run you made, every attempt, every token.
                     </p>
                 </div>
                 <Link
                     className="button primary"
-                    to={`/playground?task=${taskId}`}
+                    to={taskId ? `/playground?task=${taskId}` : "/playground"}
                 >
                     <Icon name="plus" size={15} />
                     New playground run
                 </Link>
             </div>
-            <div className="notice">
-                <Icon name="chart" size={17} />
-                <span>
-                    <strong>Sample benchmark data.</strong> All outcomes and
-                    token counts below are illustrative. They are not research
-                    results.
-                </span>
-                <span className="small-badge">DEMO</span>
-            </div>
-            <div className="section-heading">
-                <div>
-                    <h2>Paired comparison</h2>
-                    <p>Including the cost of teaching the model Zak.</p>
-                </div>
-                <label className="compact-select">
-                    <select
-                        aria-label="Comparison task"
-                        value={taskId}
-                        onChange={(event) => setTaskId(event.target.value)}
-                    >
-                        {tasks.map((item) => (
-                            <option value={item.id} key={item.id}>
-                                {item.title}
-                            </option>
-                        ))}
-                    </select>
-                    <Icon name="chevron" size={14} />
-                </label>
-            </div>
-            <div className="comparison-grid">
-                {[zak, python].map((run) => (
-                    <section
-                        className={`comparison-card ${run.language}`}
-                        key={run.language}
-                    >
-                        <div className="comparison-top">
-                            <span className="comparison-language">
-                                {run.language === "zak" ? (
-                                    <span className="mini-z">z</span>
-                                ) : (
-                                    <Icon name="code" />
-                                )}{" "}
-                                {run.language === "zak" ? "Zak" : "Python"}
-                            </span>
-                            <span className="outcome-pill">
-                                <Icon name="check" size={12} />
-                                Demo passed
-                            </span>
-                        </div>
-                        <button
-                            className="token-total"
-                            onClick={() => setDetail(run)}
-                        >
-                            {(
-                                run.promptTokens + run.completionTokens
-                            ).toLocaleString()}
-                            <span>
-                                total tokens <Icon name="external" size={12} />
-                            </span>
-                        </button>
-                        <div className="token-bar">
-                            <span
-                                style={{
-                                    width: `${(run.promptTokens / (run.promptTokens + run.completionTokens)) * 100}%`,
-                                }}
-                            />
-                            <span />
-                        </div>
-                        <div className="token-breakdown">
-                            <button onClick={() => setDetail(run)}>
-                                <span className="legend-square" />
-                                Prompt{" "}
-                                <strong>
-                                    {run.promptTokens.toLocaleString()}
-                                </strong>
-                            </button>
-                            <button onClick={() => setDetail(run)}>
-                                <span className="legend-square completion" />
-                                Completion{" "}
-                                <strong>{run.completionTokens}</strong>
-                            </button>
-                        </div>
-                        <div className="comparison-meta">
-                            <span>Seed 42 · Temperature 0</span>
-                            <span>1 attempt</span>
-                        </div>
-                    </section>
-                ))}
-            </div>
-            <div className="comparison-insight">
-                <span className="ratio">
-                    {(zakTotal / pythonTotal).toFixed(2)}
-                    <small>×</small>
-                </span>
-                <div>
-                    <strong>Zak / Python total-token ratio</strong>
-                    <p>
-                        In this fixture, shorter output does not offset Zak’s
-                        prompt overhead. Completion tokens alone tell only part
-                        of the story.
-                    </p>
-                </div>
-                <span className="insight-task">{task.title}</span>
-            </div>
             <div className="section-heading table-heading">
                 <div>
                     <h2>Run history</h2>
-                    <p>Inspect the source and accounting behind each run.</p>
+                    <p>Open a run to see the source and accounting behind it.</p>
                 </div>
                 <button
                     className="button secondary"
                     onClick={exportCsv}
-                    disabled={!displayedRuns.length}
+                    disabled={!filtered.length || exporting}
                 >
                     <Icon name="download" size={15} />
-                    Export CSV
+                    {exporting ? "Exporting…" : "Export CSV"}
                 </button>
             </div>
+            {exportError !== null && (
+                <p className="compiler-error">
+                    CSV export failed. {errorText(exportError)}
+                </p>
+            )}
             <div className="run-table-panel">
                 <div className="table-filters">
-                    <div className="segmented-control">
-                        <button
-                            className={dataset === "sample" ? "selected" : ""}
-                            aria-pressed={dataset === "sample"}
-                            onClick={() => setDataset("sample")}
-                        >
-                            Sample runs
-                        </button>
-                        <button
-                            className={dataset === "local" ? "selected" : ""}
-                            aria-pressed={dataset === "local"}
-                            onClick={() => setDataset("local")}
-                        >
-                            My demo runs{" "}
-                            <span className="count-badge">
-                                {localRuns.length}
-                            </span>
-                        </button>
-                    </div>
                     <label className="compact-select">
                         <select
-                            aria-label="Filter run language"
-                            value={language}
+                            aria-label="Filter by language"
+                            value={language ?? "all"}
                             onChange={(event) =>
-                                setLanguage(event.target.value)
+                                setFilter("lang", event.target.value)
                             }
                         >
                             <option value="all">All languages</option>
-                            <option value="zak">Zak</option>
-                            <option value="python">Python</option>
+                            {languages.map((item) => (
+                                <option value={item} key={item}>
+                                    {languageName(item)}
+                                </option>
+                            ))}
                         </select>
                         <Icon name="chevron" size={13} />
                     </label>
-                </div>
-                <div className="table-scroll">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Task</th>
-                                <th>Language</th>
-                                <th>Outcome</th>
-                                <th>Prompt</th>
-                                <th>Completion</th>
-                                <th>Total tokens</th>
-                                <th>Seed</th>
-                                <th>
-                                    <span className="sr-only">Details</span>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {displayedRuns.map((run) => (
-                                <tr key={run.id}>
-                                    <td>
-                                        <button
-                                            className="table-task"
-                                            onClick={() => setDetail(run)}
-                                        >
-                                            {tasks.find(
-                                                (item) =>
-                                                    item.id === run.taskId,
-                                            )?.title ?? run.taskId}
-                                            <small>{run.id.slice(0, 19)}</small>
-                                        </button>
-                                    </td>
-                                    <td>
-                                        <span
-                                            className={`language-pill ${run.language}`}
-                                        >
-                                            {run.language === "zak"
-                                                ? "Zak"
-                                                : "Python"}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span
-                                            className={
-                                                run.passed
-                                                    ? "success"
-                                                    : "compiler-error"
-                                            }
-                                        >
-                                            {run.passed
-                                                ? "Demo passed"
-                                                : "Demo failed"}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <button
-                                            className="number-link"
-                                            onClick={() => setDetail(run)}
-                                        >
-                                            {run.promptTokens.toLocaleString()}
-                                        </button>
-                                    </td>
-                                    <td>
-                                        <button
-                                            className="number-link"
-                                            onClick={() => setDetail(run)}
-                                        >
-                                            {run.completionTokens}
-                                        </button>
-                                    </td>
-                                    <td>
-                                        <button
-                                            className="number-link total"
-                                            onClick={() => setDetail(run)}
-                                        >
-                                            {(
-                                                run.promptTokens +
-                                                run.completionTokens
-                                            ).toLocaleString()}
-                                        </button>
-                                    </td>
-                                    <td className="mono muted">{run.seed}</td>
-                                    <td>
-                                        <button
-                                            className="icon-button"
-                                            aria-label={`Inspect ${run.taskId} ${run.language} run`}
-                                            onClick={() => setDetail(run)}
-                                        >
-                                            <Icon name="arrow" size={15} />
-                                        </button>
-                                    </td>
-                                </tr>
+                    <label className="compact-select">
+                        <select
+                            aria-label="Filter by task"
+                            value={taskId ?? "all"}
+                            onChange={(event) =>
+                                setFilter("task", event.target.value)
+                            }
+                        >
+                            <option value="all">All tasks</option>
+                            {taskId && !taskIds.includes(taskId) && (
+                                <option value={taskId}>{taskId}</option>
+                            )}
+                            {taskIds.map((id) => (
+                                <option value={id} key={id}>
+                                    {titles.get(id) ?? id}
+                                </option>
                             ))}
-                        </tbody>
-                    </table>
+                        </select>
+                        <Icon name="chevron" size={13} />
+                    </label>
+                    <label className="compact-select">
+                        <select
+                            aria-label="Filter by outcome"
+                            value={outcome ?? "all"}
+                            onChange={(event) =>
+                                setFilter("outcome", event.target.value)
+                            }
+                        >
+                            <option value="all">All outcomes</option>
+                            {outcomes.map((item) => (
+                                <option value={item} key={item}>
+                                    {item}
+                                </option>
+                            ))}
+                        </select>
+                        <Icon name="chevron" size={13} />
+                    </label>
+                    {filtersActive && (
+                        <button className="text-button" onClick={clearFilters}>
+                            Clear filters
+                        </button>
+                    )}
                 </div>
-                {!displayedRuns.length && (
+                {visible.length > 0 && (
+                    <div className="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Run</th>
+                                    <th>Task</th>
+                                    <th>Language</th>
+                                    <th>Status</th>
+                                    <th>Attempts</th>
+                                    <th>Total tokens</th>
+                                    <th>Date</th>
+                                    <th>
+                                        <span className="sr-only">Details</span>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {visible.map((run, index) => {
+                                    const detail = details[index];
+                                    const open = () =>
+                                        setParam("run", String(run.id));
+                                    const pending = detail?.isPending ?? true;
+                                    const detailError = detail?.error
+                                        ? errorText(detail.error)
+                                        : null;
+                                    return (
+                                        <tr key={run.id}>
+                                            <td className="mono muted">
+                                                #{run.id}
+                                            </td>
+                                            <td>
+                                                <button
+                                                    className="table-task"
+                                                    onClick={open}
+                                                >
+                                                    {titles.get(run.task_id) ??
+                                                        run.task_id}
+                                                    <small>{run.task_id}</small>
+                                                </button>
+                                            </td>
+                                            <td>
+                                                <span
+                                                    className={`language-pill ${run.language}`}
+                                                >
+                                                    {languageName(run.language)}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span
+                                                    className={statusClass(
+                                                        run.status,
+                                                    )}
+                                                >
+                                                    {run.status}
+                                                </span>
+                                            </td>
+                                            <td className="mono">
+                                                {run.attempts_used}
+                                            </td>
+                                            <td>
+                                                {detail?.data ? (
+                                                    <button
+                                                        className="number-link total"
+                                                        onClick={open}
+                                                    >
+                                                        {detail.data.total_tokens.toLocaleString()}
+                                                    </button>
+                                                ) : (
+                                                    <span
+                                                        className="mono muted"
+                                                        title={
+                                                            detailError ??
+                                                            undefined
+                                                        }
+                                                    >
+                                                        {pending ? "…" : "!"}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="mono muted">
+                                                {detail?.data
+                                                    ? formatDate(
+                                                          detail.data
+                                                              .started_at,
+                                                      )
+                                                    : pending
+                                                      ? "…"
+                                                      : "!"}
+                                            </td>
+                                            <td>
+                                                <button
+                                                    className="icon-button"
+                                                    aria-label={`Inspect run ${run.id}`}
+                                                    onClick={open}
+                                                >
+                                                    <Icon
+                                                        name="arrow"
+                                                        size={15}
+                                                    />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+                {runs.error ? (
+                    <div className="table-empty">
+                        <h3>Could not load runs</h3>
+                        <p className="compiler-error">
+                            GET /runs failed. {errorText(runs.error)}
+                        </p>
+                        <button
+                            className="button secondary"
+                            onClick={() => runs.refetch()}
+                        >
+                            Try again
+                        </button>
+                    </div>
+                ) : runs.isPending ? (
                     <div className="table-empty">
                         <Icon name="clock" size={24} />
-                        <h3>No demo runs yet</h3>
-                        <p>
-                            Run a task in the Playground to start your local
-                            history.
-                        </p>
+                        <p>Loading runs…</p>
+                    </div>
+                ) : !allRuns.length ? (
+                    <div className="table-empty">
+                        <Icon name="clock" size={24} />
+                        <h3>No runs yet</h3>
+                        <p>Runs you start in the Playground show up here.</p>
                         <Link to="/playground" className="button secondary">
                             Open Playground <Icon name="arrow" size={14} />
                         </Link>
                     </div>
+                ) : (
+                    !filtered.length && (
+                        <div className="table-empty">
+                            <h3>No runs match these filters</h3>
+                            <button
+                                className="button secondary"
+                                onClick={clearFilters}
+                            >
+                                Clear filters
+                            </button>
+                        </div>
+                    )
                 )}
                 <div className="table-footer">
-                    {displayedRuns.length} runs
                     <span>
-                        {dataset === "sample"
-                            ? "Illustrative fixtures"
-                            : "Stored in this browser"}{" "}
-                        · Llama 3.1 8B Instruct
+                        {filtered.length === allRuns.length
+                            ? `${allRuns.length} runs`
+                            : `${filtered.length} of ${allRuns.length} runs`}
                     </span>
+                    {filtered.length > visible.length && (
+                        <button
+                            className="text-button"
+                            onClick={() => setLimit(limit + pageSize)}
+                        >
+                            Show {Math.min(pageSize, filtered.length - limit)}{" "}
+                            more
+                        </button>
+                    )}
                 </div>
             </div>
-            {selectedRun && (
-                <ArtifactDialog
-                    title={`${tasks.find((item) => item.id === selectedRun.taskId)?.title ?? selectedRun.taskId} · ${selectedRun.language}`}
-                    onClose={() => {
-                        setDetail(null);
-                        setParams({});
-                    }}
-                >
-                    <p>
-                        Demo artifact. Counts are illustrative; no inference,
-                        compilation, or sandbox execution was performed.
-                    </p>
-                    <dl className="artifact-facts">
-                        <div>
-                            <dt>
-                                Prompt tokens (includes language instructions)
-                            </dt>
-                            <dd>{selectedRun.promptTokens}</dd>
-                        </div>
-                        <div>
-                            <dt>Completion tokens</dt>
-                            <dd>{selectedRun.completionTokens}</dd>
-                        </div>
-                        <div>
-                            <dt>Total tokens</dt>
-                            <dd>
-                                {selectedRun.promptTokens +
-                                    selectedRun.completionTokens}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt>Model</dt>
-                            <dd>{selectedRun.model}</dd>
-                        </div>
-                        <div>
-                            <dt>Seed / temperature / attempts</dt>
-                            <dd>{selectedRun.seed} / 0.0 / 1</dd>
-                        </div>
-                    </dl>
-                    <CodeEditor
-                        value={selectedRun.source}
-                        language={selectedRun.language}
-                        readOnly
-                        label={`solution.${selectedRun.language === "zak" ? "zak" : "py"}`}
-                    />
-                    <Link
-                        className="button secondary dialog-link"
-                        to={`/playground?task=${selectedRun.taskId}&lang=${selectedRun.language}`}
-                    >
-                        Open task in Playground <Icon name="arrow" size={14} />
-                    </Link>
-                </ArtifactDialog>
+            {selectedRunId !== null && (
+                <RunDetail
+                    runId={selectedRunId}
+                    titles={titles}
+                    onClose={() => setParam("run", null)}
+                />
             )}
         </>
+    );
+}
+
+function RunDetail({
+    runId,
+    titles,
+    onClose,
+}: {
+    runId: number;
+    titles: Map<string, string>;
+    onClose: () => void;
+}) {
+    const query = useRun(runId);
+    const run = query.data;
+    const title = run
+        ? `Run #${run.id} · ${titles.get(run.task_id) ?? run.task_id} · ${languageName(run.language)}`
+        : `Run #${runId}`;
+
+    return (
+        <ArtifactDialog title={title} onClose={onClose}>
+            {query.error ? (
+                <p className="compiler-error">
+                    GET /runs/{runId} failed. {errorText(query.error)}
+                </p>
+            ) : !run ? (
+                <p>Loading run…</p>
+            ) : (
+                <RunFacts run={run} />
+            )}
+        </ArtifactDialog>
+    );
+}
+
+function RunFacts({ run }: { run: Run }) {
+    return (
+        <>
+            <dl className="artifact-facts">
+                <div>
+                    <dt>Task</dt>
+                    <dd>{run.task_id}</dd>
+                </div>
+                <div>
+                    <dt>Status</dt>
+                    <dd className={statusClass(run.status)}>{run.status}</dd>
+                </div>
+                <div>
+                    <dt>Model / temperature</dt>
+                    <dd>
+                        {run.model_name} / {run.temperature ?? "–"}
+                    </dd>
+                </div>
+                <div>
+                    <dt>Attempts used</dt>
+                    <dd>{run.attempts_used}</dd>
+                </div>
+                <div>
+                    <dt>Prompt / completion / total tokens</dt>
+                    <dd>
+                        {run.prompt_tokens_total.toLocaleString()} /{" "}
+                        {run.completion_tokens_total.toLocaleString()} /{" "}
+                        {run.total_tokens.toLocaleString()}
+                    </dd>
+                </div>
+                <div>
+                    <dt>Total latency</dt>
+                    <dd>{formatLatency(run.latency_ms_total)}</dd>
+                </div>
+                <div>
+                    <dt>Started / completed</dt>
+                    <dd>
+                        {formatDate(run.started_at)} /{" "}
+                        {formatDate(run.completed_at)}
+                    </dd>
+                </div>
+            </dl>
+            {run.attempts.length === 0 && (
+                <p>No attempts recorded yet.</p>
+            )}
+            {run.attempts.map((attempt) => (
+                <AttemptCard
+                    attempt={attempt}
+                    language={run.language}
+                    key={attempt.index}
+                />
+            ))}
+        </>
+    );
+}
+
+function AttemptCard({
+    attempt,
+    language,
+}: {
+    attempt: Attempt;
+    language: Language;
+}) {
+    const [completionOpen, setCompletionOpen] = useState(false);
+    const [promptNote, setPromptNote] = useState(false);
+    const compile =
+        attempt.compile_ok === null
+            ? language === "zak"
+                ? "not compiled"
+                : "n/a"
+            : attempt.compile_ok
+              ? "ok"
+              : "failed";
+    const tests =
+        attempt.tests_total === null
+            ? "–"
+            : `${attempt.tests_passed ?? 0} / ${attempt.tests_total}`;
+
+    return (
+        <section className="attempt-card">
+            <h3>
+                Attempt {attempt.index}
+                <span className="mono muted">
+                    {attempt.exec_outcome ?? "not run"}
+                </span>
+            </h3>
+            <dl className="artifact-facts">
+                <div>
+                    <dt>Prompt tokens</dt>
+                    <dd>
+                        <button
+                            className="number-link"
+                            onClick={() => setPromptNote(!promptNote)}
+                        >
+                            {formatCount(attempt.prompt_tokens)}
+                        </button>
+                    </dd>
+                </div>
+                <div>
+                    <dt>Completion tokens</dt>
+                    <dd>
+                        <button
+                            className="number-link"
+                            onClick={() => setCompletionOpen(true)}
+                        >
+                            {formatCount(attempt.completion_tokens)}
+                        </button>
+                    </dd>
+                </div>
+                <div>
+                    <dt>Total tokens</dt>
+                    <dd>{formatCount(attempt.total_tokens)}</dd>
+                </div>
+                <div>
+                    <dt>Latency</dt>
+                    <dd>{formatLatency(attempt.latency_ms)}</dd>
+                </div>
+                <div>
+                    <dt>Compile</dt>
+                    <dd>{compile}</dd>
+                </div>
+                <div>
+                    <dt>Tests passed</dt>
+                    <dd>{tests}</dd>
+                </div>
+                <div>
+                    <dt>Execution outcome</dt>
+                    <dd>{attempt.exec_outcome ?? "–"}</dd>
+                </div>
+            </dl>
+            {promptNote && (
+                <p className="muted">
+                    The prompt text is not in the API response yet, so it
+                    can't be shown here.
+                </p>
+            )}
+            {attempt.compile_errors.length > 0 && (
+                <ul className="compile-errors">
+                    {attempt.compile_errors.map((error, index) => (
+                        <li className="compiler-error" key={index}>
+                            {compilerErrorText(error)}
+                        </li>
+                    ))}
+                </ul>
+            )}
+            <details
+                className="attempt-text"
+                open={completionOpen}
+                onToggle={(event) =>
+                    setCompletionOpen(event.currentTarget.open)
+                }
+            >
+                <summary>Completion</summary>
+                <pre className="artifact-code">
+                    {attempt.completion_text || "(empty)"}
+                </pre>
+            </details>
+            {attempt.transpiled_python !== null && (
+                <details className="attempt-text">
+                    <summary>Transpiled Python</summary>
+                    <pre className="artifact-code">
+                        {attempt.transpiled_python}
+                    </pre>
+                </details>
+            )}
+        </section>
     );
 }
