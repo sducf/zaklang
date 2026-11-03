@@ -12,15 +12,15 @@ const syntax = [
 
 const sections = [
     { id: "idea", label: "The idea" },
-    { id: "prototype", label: "This prototype" },
+    { id: "prototype", label: "How it works" },
     { id: "syntax", label: "Zak Core v0.1" },
 ];
 
 const steps = [
-    ["Generate", "Load a public task’s example solution."],
-    ["Compile", "Check that source matches the demo fixture."],
-    ["Transpile", "Show the fixture’s Python translation."],
-    ["Run tests", "Show an illustrative outcome and save a local demo run."],
+    ["Generate", "The model writes a solution, or you write your own."],
+    ["Compile", "Zak compiles to Python. Errors go back to the model."],
+    ["Transpile", "See the Python the compiler produced."],
+    ["Run tests", "Hidden tests run in the sandbox. Every token is counted."],
 ];
 
 const sectionHead = "scroll-mt-20 border-t border-border-default pt-8";
@@ -76,9 +76,9 @@ export default function DocsPage() {
                     id="prototype"
                     className={`${sectionHead} mt-10 flex flex-col gap-4 text-base leading-7`}
                 >
-                    <span className="label">This prototype</span>
+                    <span className="label">How it works</span>
                     <h2 className="text-xl font-semibold tracking-tight">
-                        Explore the shape of the pipeline.
+                        From a prompt to passing tests.
                     </h2>
                     <ol className="flex flex-col">
                         {steps.map(([name, text], i) => (
@@ -97,9 +97,10 @@ export default function DocsPage() {
                         ))}
                     </ol>
                     <p className="text-text-secondary">
-                        Inference, compilation, sandbox execution, and
-                        authentication are not connected. Edited code is
-                        preserved but needs a future compiler API to run.
+                        A run gets up to three attempts. When code fails to
+                        compile, the error goes back to the model for another
+                        try. For now every run uses one model, Llama 3.1 8B
+                        Instruct.
                     </p>
                 </section>
 
