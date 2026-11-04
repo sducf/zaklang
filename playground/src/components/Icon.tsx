@@ -1,62 +1,62 @@
 import type { CSSProperties } from "react";
 
 export type IconName =
-    | "terminal"
-    | "chart"
-    | "book"
-    | "arrow"
-    | "play"
+    | "alert"
+    | "arrow-right"
     | "check"
-    | "copy"
-    | "reset"
-    | "chevron"
-    | "code"
-    | "download"
+    | "chevron-down"
+    | "chevron-right"
     | "clock"
-    | "close"
-    | "plus"
+    | "code"
+    | "copy"
+    | "download"
     | "external"
-    | "cpu";
+    | "plus"
+    | "reset"
+    | "spinner"
+    | "x";
 
+// Drawn on a 16px grid with a 1.5px stroke.
 const paths: Record<IconName, string> = {
-    terminal: "m5 7 5 5-5 5m8 0h6M3 3h18v18H3z",
-    chart: "M4 4v16h16M8 15v-4m5 4V7m5 8v-6",
-    book: "M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1m0-15c3-2 6-2 9-1v15c-3-1-6-1-9 1V5z",
-    arrow: "M5 12h14m-5-5 5 5-5 5",
-    play: "m8 5 11 7-11 7V5z",
-    check: "m5 12 4 4L19 6",
-    copy: "M9 9h11v11H9zM15 9V4H4v11h5",
-    reset: "M4 10a8 8 0 1 1 1 8M4 4v6h6",
-    chevron: "m8 10 4 4 4-4",
-    code: "m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16",
-    download: "M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5",
-    clock: "M12 8v5l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0",
-    close: "m6 6 12 12M6 18 18 6",
-    plus: "M12 5v14M5 12h14",
-    external: "M14 3h7v7m0-7L10 14M10 3H3v18h18v-7",
-    cpu: "M7 7h10v10H7zM10 1v6m4-6v6m-4 10v6m4-6v6M1 10h6m-6 4h6m10-4h6m-6 4h6",
+    alert: "M8 2.5l6 11H2zM8 6.5v3M8 11.6v.1",
+    "arrow-right": "M3 8h10M9 4l4 4-4 4",
+    check: "M3.5 8.5l3 3 6-7",
+    "chevron-down": "M4 6l4 4 4-4",
+    "chevron-right": "M6 4l4 4-4 4",
+    clock: "M8 5v3l2 1.5M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0",
+    code: "M5 4.5L2 8l3 3.5M11 4.5L14 8l-3 3.5",
+    copy: "M6 6h7v7H6zM10 6V3H3v7h3",
+    download: "M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10",
+    external: "M9 3h4v4M13 3 7.5 8.5M12 9.5V13H3V4h3.5",
+    plus: "M8 3v10M3 8h10",
+    reset: "M3.5 6.5A5 5 0 1 1 4 11M3 3v3.5h3.5",
+    spinner: "M8 2a6 6 0 1 1-6 6",
+    x: "M4 4l8 8M12 4l-8 8",
 };
 
 export default function Icon({
     name,
-    size = 18,
+    size = 16,
+    className,
     style,
 }: {
     name: IconName;
     size?: number;
+    className?: string;
     style?: CSSProperties;
 }) {
     return (
         <svg
             width={size}
             height={size}
-            viewBox="0 0 24 24"
+            viewBox="0 0 16 16"
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.6"
+            strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
             aria-hidden="true"
+            className={className ? `shrink-0 ${className}` : "shrink-0"}
             style={style}
         >
             <path d={paths[name]} />

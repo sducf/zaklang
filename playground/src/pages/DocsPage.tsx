@@ -1,5 +1,4 @@
 import { Link } from "react-router";
-import Icon from "@/components/Icon";
 
 const syntax = [
     ["@solve(nums:[I])I{…}", "A function with a typed input and return value"],
@@ -11,116 +10,169 @@ const syntax = [
     ["[I] · {S:I}", "An integer array and a string-to-integer map"],
 ];
 
+const sections = [
+    { id: "idea", label: "The idea" },
+    { id: "prototype", label: "How it works" },
+    { id: "syntax", label: "Zak Core v0.1" },
+];
+
+const steps = [
+    ["Generate", "The model writes a solution, or you write your own."],
+    ["Compile", "Zak compiles to Python. Errors go back to the model."],
+    ["Transpile", "See the Python the compiler produced."],
+    ["Run tests", "Hidden tests run in the sandbox. Every token is counted."],
+];
+
+const sectionHead = "scroll-mt-20 border-t border-border-default pt-8";
+
 export default function DocsPage() {
     return (
-        <>
-            <div className="page-heading">
-                <div>
-                    <div className="eyebrow heading-eyebrow">
-                        SMALL LANGUAGE. CLEAR INTENT.
-                    </div>
-                    <h1>
-                        Meet Zak<span className="title-dot">.</span>
+        <div className="grid grid-cols-[minmax(0,1fr)_200px] gap-16 max-lg:grid-cols-1">
+            <article className="max-w-[70ch]">
+                <header className="mb-10 flex flex-col gap-4">
+                    <span className="label">Small language. Clear intent.</span>
+                    <h1 className="text-display font-semibold tracking-tight max-md:text-title">
+                        Meet Zak
                     </h1>
-                    <p>
+                    <p className="text-base text-text-secondary">
                         A deterministic language designed for LLM code
                         generation.
                     </p>
-                </div>
-                <Link className="button secondary" to="/playground">
-                    Try it out <Icon name="arrow" size={15} />
-                </Link>
-            </div>
-            <div className="docs-grid">
-                <section className="docs-card">
-                    <span className="eyebrow">THE IDEA</span>
-                    <h2>Spend tokens on the solution.</h2>
-                    <p>
+                    <div>
+                        <Link className="btn btn-secondary" to="/playground">
+                            Try it out
+                        </Link>
+                    </div>
+                </header>
+
+                <section
+                    id="idea"
+                    className={`${sectionHead} flex flex-col gap-4 text-base leading-7`}
+                >
+                    <span className="label">The idea</span>
+                    <h2 className="text-xl font-semibold tracking-tight">
+                        Spend tokens on the solution.
+                    </h2>
+                    <p className="text-text-secondary">
                         Zak uses compact, typed syntax that a compiler can
                         translate to Python. ZakBench compares Zak and Python on
                         the same task, model, seed, and tests.
                     </p>
-                    <p>
+                    <p className="text-text-secondary">
                         The research question is whether Zak can reduce{" "}
-                        <strong>tokens-to-correctness</strong>: every prompt and
-                        completion token, across every attempt, until the
-                        program passes.
+                        <strong className="font-semibold text-text-primary">
+                            tokens-to-correctness
+                        </strong>
+                        : every prompt and completion token, across every
+                        attempt, until the program passes.
                     </p>
-                    <div className="docs-callout">
+                    <p className="border-l-2 border-border-action pl-4">
                         Prompt overhead counts, too. Fewer completion tokens do
                         not guarantee a cheaper correct solution.
-                    </div>
-                </section>
-                <section className="docs-card">
-                    <span className="eyebrow">THIS PROTOTYPE</span>
-                    <h2>Explore the shape of the pipeline.</h2>
-                    <ol className="docs-steps">
-                        <li>
-                            <strong>Generate</strong>
-                            <span>Load a public task’s example solution.</span>
-                        </li>
-                        <li>
-                            <strong>Compile</strong>
-                            <span>
-                                Check that source matches the demo fixture.
-                            </span>
-                        </li>
-                        <li>
-                            <strong>Transpile</strong>
-                            <span>Show the fixture’s Python translation.</span>
-                        </li>
-                        <li>
-                            <strong>Run tests</strong>
-                            <span>
-                                Show an illustrative outcome and save a local
-                                demo run.
-                            </span>
-                        </li>
-                    </ol>
-                    <p className="muted">
-                        Inference, compilation, sandbox execution, and
-                        authentication are not connected. Edited code is
-                        preserved but needs a future compiler API to run.
                     </p>
                 </section>
-            </div>
-            <section className="docs-card syntax-card">
-                <div className="section-heading">
-                    <div>
-                        <span className="eyebrow">ZAK CORE v0.1</span>
-                        <h2>A little syntax goes a long way.</h2>
+
+                <section
+                    id="prototype"
+                    className={`${sectionHead} mt-10 flex flex-col gap-4 text-base leading-7`}
+                >
+                    <span className="label">How it works</span>
+                    <h2 className="text-xl font-semibold tracking-tight">
+                        From a prompt to passing tests.
+                    </h2>
+                    <ol className="flex flex-col">
+                        {steps.map(([name, text], i) => (
+                            <li
+                                key={name}
+                                className="grid grid-cols-[24px_120px_minmax(0,1fr)] gap-3 border-b border-border-default py-3 max-md:grid-cols-[24px_minmax(0,1fr)]"
+                            >
+                                <span className="text-text-tertiary">
+                                    {i + 1}
+                                </span>
+                                <strong className="font-semibold">{name}</strong>
+                                <span className="text-text-secondary max-md:col-start-2">
+                                    {text}
+                                </span>
+                            </li>
+                        ))}
+                    </ol>
+                    <p className="text-text-secondary">
+                        A run gets up to three attempts. When code fails to
+                        compile, the error goes back to the model for another
+                        try. For now every run uses one model, Llama 3.1 8B
+                        Instruct.
+                    </p>
+                </section>
+
+                <section
+                    id="syntax"
+                    className={`${sectionHead} mt-10 flex flex-col gap-4 text-base leading-7`}
+                >
+                    <div className="flex flex-wrap items-center gap-3">
+                        <span className="label">Zak Core v0.1</span>
+                        <span className="badge badge-neutral">Draft grammar</span>
                     </div>
-                    <span className="small-badge">DRAFT GRAMMAR</span>
-                </div>
-                <p>
-                    Based on the repository’s Lark grammar. Whitespace is
-                    ignored; simple statements are separated with semicolons.
-                    Function and control-flow blocks use braces. The language is
-                    still evolving.
-                </p>
-                <div className="table-scroll">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Zak</th>
-                                <th>Meaning</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {syntax.map(([code, meaning]) => (
-                                <tr key={code}>
-                                    <td>
-                                        <code className="syntax-example">
-                                            {code}
-                                        </code>
-                                    </td>
-                                    <td>{meaning}</td>
+                    <h2 className="text-xl font-semibold tracking-tight">
+                        A little syntax goes a long way.
+                    </h2>
+                    <p className="text-text-secondary">
+                        Based on the repository’s Lark grammar. Whitespace is
+                        ignored; simple statements are separated with
+                        semicolons. Function and control-flow blocks use braces.
+                        The language is still evolving.
+                    </p>
+                    <div className="overflow-x-auto rounded-md border border-border-default text-sm leading-5">
+                        <table className="w-full border-collapse">
+                            <thead className="border-b border-border-default bg-surface-default">
+                                <tr>
+                                    <th className="label h-10 px-4 text-left">
+                                        Zak
+                                    </th>
+                                    <th className="label h-10 px-4 text-left">
+                                        Meaning
+                                    </th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        </>
+                            </thead>
+                            <tbody>
+                                {syntax.map(([code, meaning]) => (
+                                    <tr
+                                        key={code}
+                                        className="border-b border-border-default last:border-b-0"
+                                    >
+                                        <td className="h-12 px-4 whitespace-nowrap">
+                                            <code className="text-code-text">
+                                                {code}
+                                            </code>
+                                        </td>
+                                        <td className="h-12 px-4 text-text-secondary">
+                                            {meaning}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </article>
+
+            <nav
+                aria-label="On this page"
+                className="sticky top-24 self-start max-lg:hidden"
+            >
+                <span className="label">On this page</span>
+                <ul className="mt-3 flex flex-col">
+                    {sections.map((section) => (
+                        <li key={section.id}>
+                            <a
+                                href={`#${section.id}`}
+                                className="flex h-11 items-center text-text-secondary no-underline hover:text-text-primary"
+                            >
+                                {section.label}
+                            </a>
+                        </li>
+                    ))}
+                </ul>
+            </nav>
+        </div>
     );
 }

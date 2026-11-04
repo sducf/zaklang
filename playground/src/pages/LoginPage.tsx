@@ -1,8 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Navigate, useLocation } from "react-router";
-import Icon from "@/components/Icon";
-import { ZakMark } from "@/components/Logo";
+import { ZakMark, ZakWordmark } from "@/components/Logo";
 import { ApiError } from "@/lib/api";
 import { login, register, useAuth } from "@/lib/auth";
 
@@ -47,33 +46,41 @@ export default function LoginPage() {
     const submitLabel = modes.find((item) => item.value === mode)?.label;
 
     return (
-        <>
-            <div className="page-heading">
+        <div className="flex min-h-svh flex-col items-center justify-center gap-8 px-4 py-12">
+            <div
+                className="flex animate-enter items-center gap-3 text-text-primary"
+                role="img"
+                aria-label="zaklang"
+            >
+                <ZakMark className="size-10" />
+                <ZakWordmark className="h-6 w-[98px]" />
+            </div>
+            <section
+                className="flex w-full max-w-[400px] animate-enter flex-col gap-5 rounded-xl border border-border-default bg-surface-default p-8 [animation-delay:60ms] max-md:px-5 max-md:py-6"
+                aria-labelledby="login-title"
+            >
                 <div>
-                    <ZakMark className="login-mark" title="Zak" />
-                    <div className="eyebrow heading-eyebrow">
-                        YOUR WORKSPACE
-                    </div>
-                    <h1>
+                    <h1
+                        id="login-title"
+                        className="text-2xl font-semibold tracking-tight"
+                    >
                         {mode === "login" ? "Welcome back" : "Join the lab"}
-                        <span className="title-dot">.</span>
                     </h1>
-                    <p>
+                    <p className="mt-1.5 text-text-secondary">
                         Sign in to run Zak in the Playground and keep your run
                         history.
                     </p>
                 </div>
-            </div>
-            <section className="workspace-welcome auth-card">
-                <span className="welcome-mark">z.</span>
-                <div className="segmented-control auth-mode">
+                <div
+                    className="segmented"
+                    role="group"
+                    aria-label="Account mode"
+                >
                     {modes.map((item) => (
                         <button
                             key={item.value}
                             type="button"
-                            className={
-                                mode === item.value ? "selected" : undefined
-                            }
+                            className="flex-1"
                             aria-pressed={mode === item.value}
                             onClick={() => {
                                 setMode(item.value);
@@ -84,10 +91,11 @@ export default function LoginPage() {
                         </button>
                     ))}
                 </div>
-                <form className="auth-form" onSubmit={handleSubmit}>
-                    <label className="auth-field">
-                        <span className="eyebrow">EMAIL</span>
+                <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+                    <label className="flex flex-col gap-1.5">
+                        <span className="label">Email</span>
                         <input
+                            className="field"
                             type="email"
                             autoComplete="email"
                             required
@@ -95,9 +103,10 @@ export default function LoginPage() {
                             onChange={(event) => setEmail(event.target.value)}
                         />
                     </label>
-                    <label className="auth-field">
-                        <span className="eyebrow">PASSWORD</span>
+                    <label className="flex flex-col gap-1.5">
+                        <span className="label">Password</span>
                         <input
+                            className="field"
                             type="password"
                             autoComplete={
                                 mode === "login"
@@ -111,23 +120,25 @@ export default function LoginPage() {
                             }
                         />
                         {mode === "register" && (
-                            <small>At least 8 characters.</small>
+                            <small className="text-xs text-text-secondary">
+                                At least 8 characters.
+                            </small>
                         )}
                     </label>
                     {error && (
-                        <p className="auth-error" role="alert">
+                        <p className="text-text-error" role="alert">
                             {error}
                         </p>
                     )}
                     <button
-                        className="button primary"
+                        className="btn btn-primary w-full"
                         type="submit"
                         disabled={submitting}
                     >
-                        {submitLabel} <Icon name="arrow" size={15} />
+                        {submitLabel}
                     </button>
                 </form>
             </section>
-        </>
+        </div>
     );
 }

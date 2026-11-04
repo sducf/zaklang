@@ -3,6 +3,7 @@ import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router";
 import ArtifactDialog from "@/components/ArtifactDialog";
 import Icon from "@/components/Icon";
+import StatusBadge from "@/components/StatusBadge";
 import { ApiError } from "@/lib/api";
 import {
     runQueryOptions,
@@ -54,12 +55,6 @@ function formatCount(value: number | null) {
 
 function formatLatency(ms: number | null) {
     return ms === null ? "–" : `${(ms / 1000).toFixed(2)} s`;
-}
-
-function statusClass(status: RunStatus) {
-    if (status === "passed") return "success";
-    if (status === "queued" || status === "running") return "muted";
-    return "compiler-error";
 }
 
 function downloadCsv(rows: string[][], filename: string) {
@@ -207,122 +202,150 @@ export default function ExplorerPage() {
         }
     }
 
+    const head = "label h-10 px-4 text-left whitespace-nowrap";
+    const cell = "h-13 px-4 whitespace-nowrap";
+    const select = "relative max-md:w-full";
+    const chevron =
+        "pointer-events-none absolute top-3.5 right-3 text-icon-secondary";
+
     return (
         <>
-            <div className="page-heading">
+            <div className="mb-10 flex items-end justify-between gap-6 max-md:mb-6 max-md:flex-col max-md:items-stretch">
                 <div>
-                    <div className="eyebrow heading-eyebrow">
-                        MEASURE WHAT MATTERS
-                    </div>
-                    <h1>
-                        Explorer<span className="title-dot">.</span>
+                    <h1 className="text-display font-semibold tracking-tight max-md:text-title">
+                        Explorer
                     </h1>
-                    <p>
+                    <p className="mt-2 text-base text-text-secondary">
                         Every run you made, every attempt, every token.
                     </p>
                 </div>
                 <Link
-                    className="button primary"
+                    className="btn btn-primary"
                     to={taskId ? `/playground?task=${taskId}` : "/playground"}
                 >
-                    <Icon name="plus" size={15} />
+                    <Icon name="plus" />
                     New playground run
                 </Link>
             </div>
-            <div className="section-heading table-heading">
+            <div className="mb-4 flex items-end justify-between gap-4 max-md:flex-col max-md:items-stretch">
                 <div>
-                    <h2>Run history</h2>
-                    <p>Open a run to see the source and accounting behind it.</p>
+                    <h2 className="text-xl font-semibold tracking-tight">
+                        Run history
+                    </h2>
+                    <p className="mt-1 text-text-secondary">
+                        Open a run to see the source and accounting behind it.
+                    </p>
                 </div>
                 <button
-                    className="button secondary"
+                    type="button"
+                    className="btn btn-secondary"
                     onClick={exportCsv}
                     disabled={!filtered.length || exporting}
                 >
-                    <Icon name="download" size={15} />
+                    <Icon name="download" />
                     {exporting ? "Exporting…" : "Export CSV"}
                 </button>
             </div>
             {exportError !== null && (
-                <p className="compiler-error">
+                <p className="mb-3 text-text-error" role="alert">
                     CSV export failed. {errorText(exportError)}
                 </p>
             )}
-            <div className="run-table-panel">
-                <div className="table-filters">
-                    <label className="compact-select">
-                        <select
-                            aria-label="Filter by language"
-                            value={language ?? "all"}
-                            onChange={(event) =>
-                                setFilter("lang", event.target.value)
-                            }
-                        >
-                            <option value="all">All languages</option>
-                            {languages.map((item) => (
-                                <option value={item} key={item}>
-                                    {languageName(item)}
-                                </option>
-                            ))}
-                        </select>
-                        <Icon name="chevron" size={13} />
-                    </label>
-                    <label className="compact-select">
-                        <select
-                            aria-label="Filter by task"
-                            value={taskId ?? "all"}
-                            onChange={(event) =>
-                                setFilter("task", event.target.value)
-                            }
-                        >
-                            <option value="all">All tasks</option>
-                            {taskId && !taskIds.includes(taskId) && (
-                                <option value={taskId}>{taskId}</option>
-                            )}
-                            {taskIds.map((id) => (
-                                <option value={id} key={id}>
-                                    {titles.get(id) ?? id}
-                                </option>
-                            ))}
-                        </select>
-                        <Icon name="chevron" size={13} />
-                    </label>
-                    <label className="compact-select">
-                        <select
-                            aria-label="Filter by outcome"
-                            value={outcome ?? "all"}
-                            onChange={(event) =>
-                                setFilter("outcome", event.target.value)
-                            }
-                        >
-                            <option value="all">All outcomes</option>
-                            {outcomes.map((item) => (
-                                <option value={item} key={item}>
-                                    {item}
-                                </option>
-                            ))}
-                        </select>
-                        <Icon name="chevron" size={13} />
-                    </label>
-                    {filtersActive && (
-                        <button className="text-button" onClick={clearFilters}>
-                            Clear filters
-                        </button>
-                    )}
-                </div>
+            <div
+                className="mb-3 flex flex-wrap items-center gap-2"
+                role="group"
+                aria-label="Filters"
+            >
+                <label className={select}>
+                    <select
+                        className="field w-auto max-md:w-full"
+                        aria-label="Filter by language"
+                        value={language ?? "all"}
+                        onChange={(event) =>
+                            setFilter("lang", event.target.value)
+                        }
+                    >
+                        <option value="all">All languages</option>
+                        {languages.map((item) => (
+                            <option value={item} key={item}>
+                                {languageName(item)}
+                            </option>
+                        ))}
+                    </select>
+                    <Icon name="chevron-down" className={chevron} />
+                </label>
+                <label className={select}>
+                    <select
+                        className="field w-auto max-md:w-full"
+                        aria-label="Filter by task"
+                        value={taskId ?? "all"}
+                        onChange={(event) =>
+                            setFilter("task", event.target.value)
+                        }
+                    >
+                        <option value="all">All tasks</option>
+                        {taskId && !taskIds.includes(taskId) && (
+                            <option value={taskId}>{taskId}</option>
+                        )}
+                        {taskIds.map((id) => (
+                            <option value={id} key={id}>
+                                {titles.get(id) ?? id}
+                            </option>
+                        ))}
+                    </select>
+                    <Icon name="chevron-down" className={chevron} />
+                </label>
+                <label className={select}>
+                    <select
+                        className="field w-auto max-md:w-full"
+                        aria-label="Filter by outcome"
+                        value={outcome ?? "all"}
+                        onChange={(event) =>
+                            setFilter("outcome", event.target.value)
+                        }
+                    >
+                        <option value="all">All outcomes</option>
+                        {outcomes.map((item) => (
+                            <option value={item} key={item}>
+                                {item}
+                            </option>
+                        ))}
+                    </select>
+                    <Icon name="chevron-down" className={chevron} />
+                </label>
+                {filtersActive && (
+                    <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={clearFilters}
+                    >
+                        Clear filters
+                    </button>
+                )}
+                <span className="label ml-auto max-md:ml-0">
+                    {filtered.length === allRuns.length
+                        ? `${allRuns.length} runs`
+                        : `${filtered.length} of ${allRuns.length} runs`}
+                </span>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-border-default">
                 {visible.length > 0 && (
-                    <div className="table-scroll">
-                        <table>
-                            <thead>
+                    <div className="relative overflow-x-auto">
+                        <table className="w-full min-w-[760px] border-collapse">
+                            <thead className="border-b border-border-default bg-surface-default">
                                 <tr>
-                                    <th>Run</th>
-                                    <th>Task</th>
-                                    <th>Language</th>
-                                    <th>Status</th>
-                                    <th>Attempts</th>
-                                    <th>Total tokens</th>
-                                    <th>Date</th>
-                                    <th>
+                                    <th className={head}>Run</th>
+                                    <th className={head}>Task</th>
+                                    <th className={head}>Language</th>
+                                    <th className={head}>Status</th>
+                                    <th className={`${head} text-right`}>
+                                        Attempts
+                                    </th>
+                                    <th className={`${head} text-right`}>
+                                        Total tokens
+                                    </th>
+                                    <th className={head}>Date</th>
+                                    <th className={head}>
                                         <span className="sr-only">Details</span>
                                     </th>
                                 </tr>
@@ -337,50 +360,57 @@ export default function ExplorerPage() {
                                         ? errorText(detail.error)
                                         : null;
                                     return (
-                                        <tr key={run.id}>
-                                            <td className="mono muted">
+                                        <tr
+                                            key={run.id}
+                                            className="border-b border-border-default last:border-b-0 hover:bg-surface-hover"
+                                        >
+                                            <td
+                                                className={`${cell} text-text-secondary`}
+                                            >
                                                 #{run.id}
                                             </td>
-                                            <td>
+                                            <td className={cell}>
                                                 <button
-                                                    className="table-task"
+                                                    type="button"
+                                                    className="flex flex-col items-start rounded-sm text-left"
                                                     onClick={open}
                                                 >
                                                     {titles.get(run.task_id) ??
                                                         run.task_id}
-                                                    <small>{run.task_id}</small>
+                                                    <small className="text-xs text-text-tertiary">
+                                                        {run.task_id}
+                                                    </small>
                                                 </button>
                                             </td>
-                                            <td>
-                                                <span
-                                                    className={`language-pill ${run.language}`}
-                                                >
-                                                    {languageName(run.language)}
-                                                </span>
+                                            <td
+                                                className={`${cell} text-text-secondary`}
+                                            >
+                                                {languageName(run.language)}
                                             </td>
-                                            <td>
-                                                <span
-                                                    className={statusClass(
-                                                        run.status,
-                                                    )}
-                                                >
-                                                    {run.status}
-                                                </span>
+                                            <td className={cell}>
+                                                <StatusBadge
+                                                    status={run.status}
+                                                />
                                             </td>
-                                            <td className="mono">
+                                            <td
+                                                className={`${cell} text-right`}
+                                            >
                                                 {run.attempts_used}
                                             </td>
-                                            <td>
+                                            <td
+                                                className={`${cell} text-right`}
+                                            >
                                                 {detail?.data ? (
                                                     <button
-                                                        className="number-link total"
+                                                        type="button"
+                                                        className="rounded-sm text-text-action hover:text-text-action-hover"
                                                         onClick={open}
                                                     >
                                                         {detail.data.total_tokens.toLocaleString()}
                                                     </button>
                                                 ) : (
                                                     <span
-                                                        className="mono muted"
+                                                        className="text-text-tertiary"
                                                         title={
                                                             detailError ??
                                                             undefined
@@ -390,7 +420,9 @@ export default function ExplorerPage() {
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className="mono muted">
+                                            <td
+                                                className={`${cell} text-text-secondary`}
+                                            >
                                                 {detail?.data
                                                     ? formatDate(
                                                           detail.data
@@ -400,16 +432,14 @@ export default function ExplorerPage() {
                                                       ? "…"
                                                       : "!"}
                                             </td>
-                                            <td>
+                                            <td className={`${cell} text-right`}>
                                                 <button
-                                                    className="icon-button"
+                                                    type="button"
+                                                    className="btn btn-ghost btn-icon -mr-3"
                                                     aria-label={`Inspect run ${run.id}`}
                                                     onClick={open}
                                                 >
-                                                    <Icon
-                                                        name="arrow"
-                                                        size={15}
-                                                    />
+                                                    <Icon name="chevron-right" />
                                                 </button>
                                             </td>
                                         </tr>
@@ -420,38 +450,50 @@ export default function ExplorerPage() {
                     </div>
                 )}
                 {runs.error ? (
-                    <div className="table-empty">
-                        <h3>Could not load runs</h3>
-                        <p className="compiler-error">
+                    <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+                        <h3 className="text-base font-semibold">
+                            Could not load runs
+                        </h3>
+                        <p className="text-text-error">
                             GET /runs failed. {errorText(runs.error)}
                         </p>
                         <button
-                            className="button secondary"
+                            type="button"
+                            className="btn btn-secondary"
                             onClick={() => runs.refetch()}
                         >
                             Try again
                         </button>
                     </div>
                 ) : runs.isPending ? (
-                    <div className="table-empty">
+                    <div className="flex flex-col items-center gap-3 px-6 py-12 text-center text-text-secondary">
                         <Icon name="clock" size={24} />
                         <p>Loading runs…</p>
                     </div>
                 ) : !allRuns.length ? (
-                    <div className="table-empty">
-                        <Icon name="clock" size={24} />
-                        <h3>No runs yet</h3>
-                        <p>Runs you start in the Playground show up here.</p>
-                        <Link to="/playground" className="button secondary">
-                            Open Playground <Icon name="arrow" size={14} />
+                    <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+                        <Icon
+                            name="clock"
+                            size={24}
+                            className="text-icon-secondary"
+                        />
+                        <h3 className="text-base font-semibold">No runs yet</h3>
+                        <p className="text-text-secondary">
+                            Runs you start in the Playground show up here.
+                        </p>
+                        <Link to="/playground" className="btn btn-secondary">
+                            Open Playground
                         </Link>
                     </div>
                 ) : (
                     !filtered.length && (
-                        <div className="table-empty">
-                            <h3>No runs match these filters</h3>
+                        <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+                            <h3 className="text-base font-semibold">
+                                No runs match these filters
+                            </h3>
                             <button
-                                className="button secondary"
+                                type="button"
+                                className="btn btn-secondary"
                                 onClick={clearFilters}
                             >
                                 Clear filters
@@ -459,23 +501,18 @@ export default function ExplorerPage() {
                         </div>
                     )
                 )}
-                <div className="table-footer">
-                    <span>
-                        {filtered.length === allRuns.length
-                            ? `${allRuns.length} runs`
-                            : `${filtered.length} of ${allRuns.length} runs`}
-                    </span>
-                    {filtered.length > visible.length && (
-                        <button
-                            className="text-button"
-                            onClick={() => setLimit(limit + pageSize)}
-                        >
-                            Show {Math.min(pageSize, filtered.length - limit)}{" "}
-                            more
-                        </button>
-                    )}
-                </div>
             </div>
+            {filtered.length > visible.length && (
+                <div className="mt-3 flex justify-center">
+                    <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => setLimit(limit + pageSize)}
+                    >
+                        Show {Math.min(pageSize, filtered.length - limit)} more
+                    </button>
+                </div>
+            )}
             {selectedRunId !== null && (
                 <RunDetail
                     runId={selectedRunId}
@@ -505,11 +542,11 @@ function RunDetail({
     return (
         <ArtifactDialog title={title} onClose={onClose}>
             {query.error ? (
-                <p className="compiler-error">
+                <p className="text-text-error">
                     GET /runs/{runId} failed. {errorText(query.error)}
                 </p>
             ) : !run ? (
-                <p>Loading run…</p>
+                <p className="text-text-secondary">Loading run…</p>
             ) : (
                 <RunFacts run={run} />
             )}
@@ -520,14 +557,16 @@ function RunDetail({
 function RunFacts({ run }: { run: Run }) {
     return (
         <>
-            <dl className="artifact-facts">
+            <dl className="facts">
                 <div>
                     <dt>Task</dt>
                     <dd>{run.task_id}</dd>
                 </div>
                 <div>
                     <dt>Status</dt>
-                    <dd className={statusClass(run.status)}>{run.status}</dd>
+                    <dd>
+                        <StatusBadge status={run.status} />
+                    </dd>
                 </div>
                 <div>
                     <dt>Model / temperature</dt>
@@ -560,7 +599,7 @@ function RunFacts({ run }: { run: Run }) {
                 </div>
             </dl>
             {run.attempts.length === 0 && (
-                <p>No attempts recorded yet.</p>
+                <p className="text-text-secondary">No attempts recorded yet.</p>
             )}
             {run.attempts.map((attempt) => (
                 <AttemptCard
@@ -594,21 +633,24 @@ function AttemptCard({
         attempt.tests_total === null
             ? "–"
             : `${attempt.tests_passed ?? 0} / ${attempt.tests_total}`;
+    const numberLink =
+        "rounded-sm text-text-action hover:text-text-action-hover";
 
     return (
-        <section className="attempt-card">
-            <h3>
+        <section className="flex flex-col gap-3 rounded-lg border border-border-default p-4">
+            <h3 className="flex items-center justify-between gap-3 text-base font-semibold">
                 Attempt {attempt.index}
-                <span className="mono muted">
+                <span className="text-sm font-normal text-text-secondary">
                     {attempt.exec_outcome ?? "not run"}
                 </span>
             </h3>
-            <dl className="artifact-facts">
+            <dl className="facts">
                 <div>
                     <dt>Prompt tokens</dt>
                     <dd>
                         <button
-                            className="number-link"
+                            type="button"
+                            className={numberLink}
                             onClick={() => setPromptNote(!promptNote)}
                         >
                             {formatCount(attempt.prompt_tokens)}
@@ -619,7 +661,8 @@ function AttemptCard({
                     <dt>Completion tokens</dt>
                     <dd>
                         <button
-                            className="number-link"
+                            type="button"
+                            className={numberLink}
                             onClick={() => setCompletionOpen(true)}
                         >
                             {formatCount(attempt.completion_tokens)}
@@ -648,38 +691,48 @@ function AttemptCard({
                 </div>
             </dl>
             {promptNote && (
-                <p className="muted">
+                <p className="text-text-secondary">
                     The prompt text is not in the API response yet, so it
                     can't be shown here.
                 </p>
             )}
             {attempt.compile_errors.length > 0 && (
-                <ul className="compile-errors">
+                <ul className="flex flex-col gap-1 font-mono text-[13px] leading-5">
                     {attempt.compile_errors.map((error, index) => (
-                        <li className="compiler-error" key={index}>
+                        <li className="text-text-error" key={index}>
                             {compilerErrorText(error)}
                         </li>
                     ))}
                 </ul>
             )}
             <details
-                className="attempt-text"
+                className="group"
                 open={completionOpen}
                 onToggle={(event) =>
                     setCompletionOpen(event.currentTarget.open)
                 }
             >
-                <summary>Completion</summary>
-                <pre className="artifact-code">
+                <summary className="flex h-11 cursor-pointer items-center gap-2 font-medium [&::-webkit-details-marker]:hidden">
+                    <Icon
+                        name="chevron-right"
+                        className="transition-transform group-open:rotate-90"
+                    />
+                    Completion
+                </summary>
+                <pre className="code-block">
                     {attempt.completion_text || "(empty)"}
                 </pre>
             </details>
             {attempt.transpiled_python !== null && (
-                <details className="attempt-text">
-                    <summary>Transpiled Python</summary>
-                    <pre className="artifact-code">
-                        {attempt.transpiled_python}
-                    </pre>
+                <details className="group">
+                    <summary className="flex h-11 cursor-pointer items-center gap-2 font-medium [&::-webkit-details-marker]:hidden">
+                        <Icon
+                            name="chevron-right"
+                            className="transition-transform group-open:rotate-90"
+                        />
+                        Transpiled Python
+                    </summary>
+                    <pre className="code-block">{attempt.transpiled_python}</pre>
                 </details>
             )}
         </section>

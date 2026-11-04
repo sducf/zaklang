@@ -21,7 +21,7 @@ In the app, use `ZakMark` and `ZakWordmark` from `src/components/Logo.tsx` inste
 
 - Tile: `#007355`. Text on the tile: `#FFFFFF` (5.9:1).
 - The tile reads at 3.1:1 on the dark page (`#171717`) and 5.9:1 on white.
-- `#007355` is the logo color only. Do not use it for UI elements; the rest of the interface stays neutral.
+- `#007355` is also the interface accent. In the app it comes from the semantic tokens in `src/style.css` (`--color-surface-action`, `--color-surface-brand`), with lighter tints for focus rings and green text so they stay readable on dark surfaces. Everything else stays neutral.
 
 ## Clear space and sizes
 
