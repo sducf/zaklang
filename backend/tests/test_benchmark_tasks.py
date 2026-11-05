@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker
@@ -19,6 +20,7 @@ from api.controllers import benchmark
 from api.controllers.auth import get_current_user_controller
 from api.routes import auth as auth_routes
 from api.routes import benchmark as benchmark_routes
+from api.schemas import benchmark as benchmark_schemas
 from main import app
 from database.models import Attempt, Base, BenchmarkRun, Evaluation, User
 
@@ -77,6 +79,40 @@ class BenchmarkTaskControllerTests(unittest.TestCase):
                 benchmark.get_task_controller("missing")
 
         self.assertEqual(raised.exception.status_code, 404)
+
+    def test_run_requests_validate_seed_and_temperature_ranges(self):
+        valid = {
+            "task_id": "array_sum",
+            "language": benchmark.Language.PYTHON,
+            "temperature": benchmark_schemas.MAX_TEMPERATURE,
+            "seed": benchmark_schemas.MAX_SEED,
+        }
+        benchmark_routes.RunCreateRequest(**valid)
+        benchmark_routes.PairCreateRequest(
+            task_id="array_sum",
+            temperature=benchmark_schemas.MIN_TEMPERATURE,
+            seed=benchmark_schemas.MIN_SEED,
+        )
+
+        for field, value in (
+            ("temperature", -0.1),
+            ("temperature", 2.1),
+            ("temperature", 50.9),
+            ("seed", benchmark_schemas.MAX_SEED + 1),
+            ("seed", benchmark_schemas.MIN_SEED - 1),
+        ):
+            with self.subTest(field=field, value=value):
+                invalid = {**valid, field: value}
+                with self.assertRaises(ValidationError):
+                    benchmark_routes.RunCreateRequest(**invalid)
+                invalid_pair = {
+                    "task_id": "array_sum",
+                    "temperature": valid["temperature"],
+                    "seed": valid["seed"],
+                    field: value,
+                }
+                with self.assertRaises(ValidationError):
+                    benchmark_routes.PairCreateRequest(**invalid_pair)
 
     def test_compile_invalid_zak_returns_structured_errors(self):
         response = benchmark.compile_controller("@solve(a:[I])I{^sum(a)+}")

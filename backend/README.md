@@ -105,12 +105,15 @@ returned by these endpoints.
 
 - `POST /runs` creates a `queued` run and schedules the single-run worker with
   FastAPI `BackgroundTasks`. It accepts an optional `temperature`; omitted
-  values use the runner default of `0.0`. It also accepts an optional `seed`;
-  omitted seeds use the backend default.
+  values use the runner default of `0.0`; supplied values must be between
+  `0.0` and `2.0`. It also accepts an optional `seed`; omitted seeds use the
+  backend default, while supplied seeds must fit the database signed
+  32-bit-integer range.
 - `POST /runs/pair` creates one queued Zak run and one queued Python run for
   the same task, linked by a shared `pair_id`, and schedules both workers.
   The request accepts `task_id`, optional `temperature`, and optional `seed`;
-  the response contains the `pair_id` and the two run IDs.
+  the same temperature and seed validation applies, and the response contains
+  the `pair_id` and the two run IDs.
 - `GET /runs` returns only runs owned by the authenticated caller.
 - `GET /runs/{id}` returns the caller's aggregate run or `404` for another
   user's run.

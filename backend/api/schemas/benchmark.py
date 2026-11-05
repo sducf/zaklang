@@ -7,6 +7,10 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 TASK_ID_PATTERN = r"^[a-z0-9_]+$"
+MIN_SEED = -(2**31)
+MAX_SEED = 2**31 - 1
+MIN_TEMPERATURE = 0.0
+MAX_TEMPERATURE = 2.0
 
 
 class Language(str, Enum):
@@ -69,15 +73,19 @@ class CompileResponse(BaseModel):
 class RunCreateRequest(BaseModel):
     task_id: str = Field(pattern=TASK_ID_PATTERN)
     language: Language
-    temperature: float | None = None
-    seed: int | None = None
+    temperature: float | None = Field(
+        default=None, ge=MIN_TEMPERATURE, le=MAX_TEMPERATURE
+    )
+    seed: int | None = Field(default=None, ge=MIN_SEED, le=MAX_SEED)
     source: str | None = Field(default=None, max_length=20_000)
 
 
 class PairCreateRequest(BaseModel):
     task_id: str = Field(pattern=TASK_ID_PATTERN)
-    temperature: float | None = None
-    seed: int | None = None
+    temperature: float | None = Field(
+        default=None, ge=MIN_TEMPERATURE, le=MAX_TEMPERATURE
+    )
+    seed: int | None = Field(default=None, ge=MIN_SEED, le=MAX_SEED)
 
 
 class PairCreateResponse(BaseModel):
