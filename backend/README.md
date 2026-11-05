@@ -105,11 +105,12 @@ returned by these endpoints.
 
 - `POST /runs` creates a `queued` run and schedules the single-run worker with
   FastAPI `BackgroundTasks`. It accepts an optional `temperature`; omitted
-  values use the runner default of `0.0`.
+  values use the runner default of `0.0`. It also accepts an optional `seed`;
+  omitted seeds use the backend default.
 - `POST /runs/pair` creates one queued Zak run and one queued Python run for
   the same task, linked by a shared `pair_id`, and schedules both workers.
-  The request accepts `task_id` and an optional `temperature`; the response
-  contains the `pair_id` and the two run IDs.
+  The request accepts `task_id`, optional `temperature`, and optional `seed`;
+  the response contains the `pair_id` and the two run IDs.
 - `GET /runs` returns only runs owned by the authenticated caller.
 - `GET /runs/{id}` returns the caller's aggregate run or `404` for another
   user's run.
@@ -119,6 +120,12 @@ returned by these endpoints.
 All run endpoints require an access bearer token and return `401` when the
 request is unauthenticated. The configured model name is currently
 `Llama 3.1 8B Instruct`.
+
+Runs persist the effective seed, prompt version, Zak spec version, and maximum
+attempt count used by the backend. `PROMPT_VERSION` and `ZAK_SPEC_VERSION` are
+backend-controlled constants and must be bumped in both the backend and
+ZakBench documentation/source when their respective templates or language
+specification changes.
 
 The worker opens a separate database session, calls the existing ZakBench
 single-run function, persists each `Attempt` and `Evaluation`, and updates the
@@ -137,6 +144,10 @@ them and are not summed at run level:
   "language": "zak",
   "model_name": "Llama 3.1 8B Instruct",
   "temperature": 0.2,
+  "seed": 0,
+  "spec_version": "0.1",
+  "prompt_version": "1",
+  "max_attempts": 3,
   "started_at": "2026-10-15T12:00:00Z",
   "completed_at": "2026-10-15T12:00:04Z",
   "status": "passed",

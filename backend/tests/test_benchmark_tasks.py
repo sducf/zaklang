@@ -264,7 +264,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual(args[0], response.id)
         self.assertEqual(
             args[1:],
-            ("array_sum", benchmark.Language.PYTHON, payload.source, 0.7),
+            ("array_sum", benchmark.Language.PYTHON, payload.source, 0.7, None),
         )
 
     def test_run_reads_are_scoped_to_the_current_user(self):
@@ -582,6 +582,7 @@ class BenchmarkHttpAuthTests(unittest.TestCase):
             benchmark_routes.PairCreateRequest(
                 task_id="array_sum",
                 temperature=0.4,
+                seed=17,
             ),
             background_tasks,
             self.user,
@@ -596,6 +597,13 @@ class BenchmarkHttpAuthTests(unittest.TestCase):
         self.assertEqual({run.language for run in runs}, {"zak", "python"})
         self.assertEqual({run.pair_id for run in runs}, {response.pair_id})
         self.assertEqual({run.temperature for run in runs}, {0.4})
+        self.assertEqual({run.seed for run in runs}, {17})
+        self.assertEqual({run.prompt_version for run in runs}, {"1"})
+        self.assertEqual({run.max_attempts for run in runs}, {3})
+        self.assertEqual(
+            {run.spec_version for run in runs},
+            {"0.1", None},
+        )
         self.assertEqual({run.status for run in runs}, {"queued"})
         self.assertEqual(len(background_tasks.tasks), 2)
         self.assertEqual(
