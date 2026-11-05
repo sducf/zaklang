@@ -14,6 +14,7 @@ Table benchmark_runs {
   id integer [pk, increment]
 
   user_id uuid [not null]
+  pair_id uuid
 
   task_id varchar(100) [not null, note: "References a ZakBench task ID"]
   language varchar(20) [not null, note: "Expected values: python or zak"]
@@ -26,6 +27,10 @@ Table benchmark_runs {
 
   started_at timestamptz [not null]
   completed_at timestamptz
+
+  indexes {
+    (pair_id) [name: 'ix_benchmark_runs_pair_id']
+  }
 }
 Table attempts {
   id integer [pk, increment]

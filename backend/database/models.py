@@ -79,6 +79,13 @@ class BenchmarkRun(Base):
         back_populates="benchmark_runs",
     )
 
+    # Links the Zak and Python runs created for one matched benchmark pair.
+    pair_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+        index=True,
+    )
+
     # Matches the task id defined in ZakBench, such as "array_sum". -H
     task_id: Mapped[str] = mapped_column(
         String(100),
