@@ -22,3 +22,8 @@ zakbench/
 ```
 
 Each folder has its own README with more detail.
+
+The backend records the prompt and Zak specification versions used for each
+run. When prompt templates or the Zak language specification change, bump
+`PROMPT_VERSION` in `runners/prompt.py` or `ZAK_SPEC_VERSION` in the backend
+controller, and update the corresponding backend and ZakBench documentation.

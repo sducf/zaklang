@@ -56,8 +56,9 @@ with the `suite_run_id`, the folder, the run records, and the summary. Pass
 ## run.py
 
 `run_single(task_id, language, model_id, spec_version, prompt_version, seed,
-max_attempts=3, source=None)` runs the PRD F5 attempt loop and returns a
-`RunResult`:
+max_attempts=3, source=None, temperature=None, max_tokens=None)` runs the PRD
+F5 attempt loop and returns a `RunResult`. Omitted values use the runner
+defaults (`temperature=0.0`, `max_tokens=1024`):
 
 1. Generate with temperature 0, the given seed, and at most 1024 tokens.
 2. Evaluate with `evaluate()` from `evaluation/`. It compiles and transpiles

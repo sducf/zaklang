@@ -2,10 +2,15 @@
 
 from datetime import datetime
 from enum import Enum
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 TASK_ID_PATTERN = r"^[a-z0-9_]+$"
+MIN_SEED = 0
+MAX_SEED = 2**31 - 1
+MIN_TEMPERATURE = 0.0
+MAX_TEMPERATURE = 2.0
 
 
 class Language(str, Enum):
@@ -68,7 +73,24 @@ class CompileResponse(BaseModel):
 class RunCreateRequest(BaseModel):
     task_id: str = Field(pattern=TASK_ID_PATTERN)
     language: Language
+    temperature: float | None = Field(
+        default=None, ge=MIN_TEMPERATURE, le=MAX_TEMPERATURE
+    )
+    seed: int | None = Field(default=None, ge=MIN_SEED, le=MAX_SEED)
     source: str | None = Field(default=None, max_length=20_000)
+
+
+class PairCreateRequest(BaseModel):
+    task_id: str = Field(pattern=TASK_ID_PATTERN)
+    temperature: float | None = Field(
+        default=None, ge=MIN_TEMPERATURE, le=MAX_TEMPERATURE
+    )
+    seed: int | None = Field(default=None, ge=MIN_SEED, le=MAX_SEED)
+
+
+class PairCreateResponse(BaseModel):
+    pair_id: UUID
+    run_ids: list[int] = Field(min_length=2, max_length=2)
 
 
 class AttemptResponse(BaseModel):
@@ -92,10 +114,15 @@ class RunResponse(BaseModel):
     """Aggregate result for a run, including its individual attempts."""
 
     id: int
+    pair_id: UUID | None
     task_id: str
     language: Language
     model_name: str
     temperature: float | None
+    seed: int
+    spec_version: str | None
+    prompt_version: str
+    max_attempts: int
     started_at: datetime
     completed_at: datetime | None
     status: RunStatus
@@ -110,7 +137,12 @@ class RunResponse(BaseModel):
 
 class RunListItem(BaseModel):
     id: int
+    pair_id: UUID | None
     task_id: str
     language: Language
+    seed: int
+    spec_version: str | None
+    prompt_version: str
+    max_attempts: int
     status: RunStatus
     attempts_used: int = Field(ge=0)

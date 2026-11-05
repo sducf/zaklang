@@ -79,6 +79,13 @@ class BenchmarkRun(Base):
         back_populates="benchmark_runs",
     )
 
+    # Links the Zak and Python runs created for one matched benchmark pair.
+    pair_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
+        index=True,
+    )
+
     # Matches the task id defined in ZakBench, such as "array_sum". -H
     task_id: Mapped[str] = mapped_column(
         String(100),
@@ -101,6 +108,29 @@ class BenchmarkRun(Base):
     temperature: Mapped[float | None] = mapped_column(
         Float,
         nullable=True,
+    )
+
+    seed: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    spec_version: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    prompt_version: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="1",
+    )
+
+    max_attempts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=3,
     )
 
     max_tokens: Mapped[int | None] = mapped_column(

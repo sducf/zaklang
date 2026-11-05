@@ -59,7 +59,18 @@ def evaluate(source, task_id, language="python"):
 
     return evaluate_local(source, task_id, language)
 
-def run_single(task_id, language, model_id, spec_version, prompt_version, seed, max_attempts=3, source=None):
+def run_single(
+    task_id,
+    language,
+    model_id,
+    spec_version,
+    prompt_version,
+    seed,
+    max_attempts=3,
+    source=None,
+    temperature=None,
+    max_tokens=None,
+):
     """Run one task in one language for up to max_attempts and return the result.
 
     When source is given, attempt 1 evaluates it instead of generating, and no repairs run.
@@ -70,6 +81,10 @@ def run_single(task_id, language, model_id, spec_version, prompt_version, seed, 
         raise ValueError(f'unknown prompt version: {prompt_version}')
     if max_attempts < 1:
         raise ValueError('max_attempts must be at least 1')
+    if temperature is None:
+        temperature = TEMPERATURE
+    if max_tokens is None:
+        max_tokens = MAX_TOKENS
     task = load_task(task_id)
     messages = [{'role': 'user', 'content': build_prompt(task, language, spec_version)}]
 
@@ -80,7 +95,12 @@ def run_single(task_id, language, model_id, spec_version, prompt_version, seed, 
             prompt_tokens = completion_tokens = latency_ms = 0
             finish_reason = None
         else:
-            generation = generate(messages, seed=seed, max_tokens=MAX_TOKENS, temperature=TEMPERATURE)
+            generation = generate(
+                messages,
+                seed=seed,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
             completion, code = generation.text, extract_code(generation.text)
             prompt_tokens, completion_tokens = generation.prompt_tokens, generation.completion_tokens
             latency_ms, finish_reason = generation.latency_ms, generation.finish_reason
@@ -118,7 +138,7 @@ def run_single(task_id, language, model_id, spec_version, prompt_version, seed, 
     last = attempts[-1]
     return RunResult(
         task_id=task_id, language=language, model_id=model_id, spec_version=spec_version,
-        prompt_version=prompt_version, seed=seed, temperature=TEMPERATURE, max_tokens=MAX_TOKENS,
+        prompt_version=prompt_version, seed=seed, temperature=temperature, max_tokens=max_tokens,
         max_attempts=max_attempts, source_provided=source is not None,
         exec_outcome=last['exec_outcome'], compile_ok=last['compile_ok'],
         tests_passed=last['tests_passed'], tests_total=last['tests_total'],

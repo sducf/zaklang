@@ -14,18 +14,27 @@ Table benchmark_runs {
   id integer [pk, increment]
 
   user_id uuid [not null]
+  pair_id uuid
 
   task_id varchar(100) [not null, note: "References a ZakBench task ID"]
   language varchar(20) [not null, note: "Expected values: python or zak"]
   model_name varchar(255) [not null]
 
   temperature float
+  seed integer [not null, note: "Request seed"]
+  spec_version varchar(50)
+  prompt_version varchar(50) [not null]
+  max_attempts integer [not null]
   max_tokens integer
 
   status varchar(50) [not null, note: "queued, running, passed, failed, error, or timeout"]
 
   started_at timestamptz [not null]
   completed_at timestamptz
+
+  indexes {
+    (pair_id) [name: 'ix_benchmark_runs_pair_id']
+  }
 }
 Table attempts {
   id integer [pk, increment]

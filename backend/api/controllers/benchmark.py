@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import sys
 from typing import Any
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
 from sqlalchemy import func
@@ -36,6 +37,8 @@ PROMPT_VERSION = "1"
 ZAK_SPEC_VERSION = "0.1"
 SEED = 0
 MAX_ATTEMPTS = 3
+MAX_TOKENS = 1024
+DEFAULT_TEMPERATURE = 0.0
 logger = logging.getLogger(__name__)
 
 
@@ -166,14 +169,27 @@ def create_queued_run(
     task_id: str,
     language: Language,
     temperature: float | None = None,
+    pair_id: UUID | None = None,
+    seed: int | None = None,
 ) -> BenchmarkRun:
     """Add a queued run and flush it so its ID is available to the caller."""
+    effective_temperature = (
+        temperature if temperature is not None else DEFAULT_TEMPERATURE
+    )
+    effective_seed = seed if seed is not None else SEED
+    spec_version = ZAK_SPEC_VERSION if language is Language.ZAK else None
     run = BenchmarkRun(
         user_id=user.id,
         task_id=task_id,
         language=language.value,
         model_name=MODEL_NAME,
-        temperature=temperature,
+        temperature=effective_temperature,
+        seed=effective_seed,
+        spec_version=spec_version,
+        prompt_version=PROMPT_VERSION,
+        max_attempts=MAX_ATTEMPTS,
+        max_tokens=MAX_TOKENS,
+        pair_id=pair_id,
         status=RunStatus.QUEUED.value,
     )
     db.add(run)
@@ -181,11 +197,37 @@ def create_queued_run(
     return run
 
 
+def create_queued_pair(
+    db: Session,
+    user: User,
+    task_id: str,
+    temperature: float | None = None,
+    seed: int | None = None,
+) -> tuple[UUID, list[BenchmarkRun]]:
+    """Add the two queued runs for one matched benchmark pair."""
+    pair_id = uuid4()
+    runs = [
+        create_queued_run(
+            db,
+            user,
+            task_id,
+            language,
+            temperature=temperature,
+            pair_id=pair_id,
+            seed=seed,
+        )
+        for language in (Language.ZAK, Language.PYTHON)
+    ]
+    return pair_id, runs
+
+
 def execute_run_in_background(
     run_id: int,
     task_id: str,
     language: Language,
     source: str | None,
+    temperature: float | None = None,
+    seed: int | None = None,
 ) -> None:
     """Execute a run using a fresh database session after the response."""
     db = SessionLocal()
@@ -195,6 +237,22 @@ def execute_run_in_background(
             logger.error("Background run %s no longer exists", run_id)
             return
 
+        effective_temperature = run.temperature
+        if effective_temperature is None:
+            effective_temperature = (
+                temperature
+                if temperature is not None
+                else DEFAULT_TEMPERATURE
+            )
+        effective_seed = run.seed if run.seed is not None else (
+            seed if seed is not None else SEED
+        )
+        run.seed = effective_seed
+        effective_prompt_version = run.prompt_version or PROMPT_VERSION
+        effective_max_attempts = run.max_attempts or MAX_ATTEMPTS
+        effective_max_tokens = run.max_tokens or MAX_TOKENS
+        run.temperature = effective_temperature
+        run.max_tokens = effective_max_tokens
         run.status = RunStatus.RUNNING.value
         db.commit()
 
@@ -206,11 +264,13 @@ def execute_run_in_background(
             task_id,
             language.value,
             MODEL_NAME,
-            ZAK_SPEC_VERSION if language is Language.ZAK else None,
-            PROMPT_VERSION,
-            SEED,
-            max_attempts=MAX_ATTEMPTS,
+            run.spec_version,
+            effective_prompt_version,
+            effective_seed,
+            max_attempts=effective_max_attempts,
+            max_tokens=effective_max_tokens,
             source=source,
+            temperature=effective_temperature,
         )
         _persist_run_result(db, run, result)
     except Exception:
@@ -322,6 +382,29 @@ def get_run_for_user(db: Session, user: User, run_id: int) -> RunResponse:
     return run_to_response(run)
 
 
+def get_pair_for_user(
+    db: Session,
+    user: User,
+    pair_id: UUID,
+) -> list[RunResponse]:
+    """Return both runs only when the pair belongs to the current user."""
+    runs = (
+        db.query(BenchmarkRun)
+        .filter(
+            BenchmarkRun.pair_id == pair_id,
+            BenchmarkRun.user_id == user.id,
+        )
+        .order_by(BenchmarkRun.id)
+        .all()
+    )
+    if not runs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Pair not found",
+        )
+    return [run_to_response(run) for run in runs]
+
+
 def run_to_response(run: BenchmarkRun) -> RunResponse:
     """Convert a persisted run and its related rows to the public response."""
     attempts = [
@@ -330,10 +413,15 @@ def run_to_response(run: BenchmarkRun) -> RunResponse:
     ]
     return RunResponse(
         id=run.id,
+        pair_id=run.pair_id,
         task_id=run.task_id,
         language=Language(run.language),
         model_name=run.model_name,
         temperature=run.temperature,
+        seed=run.seed,
+        spec_version=run.spec_version,
+        prompt_version=run.prompt_version,
+        max_attempts=run.max_attempts,
         started_at=run.started_at,
         completed_at=run.completed_at,
         status=RunStatus(run.status),
@@ -357,8 +445,13 @@ def run_to_list_item(
     """Convert a persisted run to the user-scoped list response."""
     return RunListItem(
         id=run.id,
+        pair_id=run.pair_id,
         task_id=run.task_id,
         language=Language(run.language),
+        seed=run.seed,
+        spec_version=run.spec_version,
+        prompt_version=run.prompt_version,
+        max_attempts=run.max_attempts,
         status=RunStatus(run.status),
         attempts_used=attempts_used,
     )
