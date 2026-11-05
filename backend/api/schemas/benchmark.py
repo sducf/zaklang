@@ -70,12 +70,14 @@ class RunCreateRequest(BaseModel):
     task_id: str = Field(pattern=TASK_ID_PATTERN)
     language: Language
     temperature: float | None = None
+    seed: int | None = None
     source: str | None = Field(default=None, max_length=20_000)
 
 
 class PairCreateRequest(BaseModel):
     task_id: str = Field(pattern=TASK_ID_PATTERN)
     temperature: float | None = None
+    seed: int | None = None
 
 
 class PairCreateResponse(BaseModel):
@@ -109,6 +111,10 @@ class RunResponse(BaseModel):
     language: Language
     model_name: str
     temperature: float | None
+    seed: int
+    spec_version: str | None
+    prompt_version: str
+    max_attempts: int
     started_at: datetime
     completed_at: datetime | None
     status: RunStatus
@@ -126,5 +132,9 @@ class RunListItem(BaseModel):
     pair_id: UUID | None
     task_id: str
     language: Language
+    seed: int
+    spec_version: str | None
+    prompt_version: str
+    max_attempts: int
     status: RunStatus
     attempts_used: int = Field(ge=0)

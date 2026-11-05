@@ -78,6 +78,7 @@ def create_run_pair(
         user,
         payload.task_id,
         temperature=payload.temperature,
+        seed=payload.seed,
     )
     db.commit()
     for run in runs:
@@ -89,6 +90,7 @@ def create_run_pair(
             Language(run.language),
             None,
             payload.temperature,
+            payload.seed,
         )
     return PairCreateResponse(
         pair_id=pair_id,
@@ -114,6 +116,7 @@ def create_run(
         payload.task_id,
         payload.language,
         temperature=payload.temperature,
+        seed=payload.seed,
     )
     db.commit()
     db.refresh(run)
@@ -124,6 +127,7 @@ def create_run(
         payload.language,
         payload.source,
         payload.temperature,
+        payload.seed,
     )
     return run_to_response(run)
 
