@@ -100,6 +100,16 @@ class RunSingleTest(unittest.TestCase):
         self.assertEqual(result.total_tokens, 0)
         self.assertIsNone(result.attempts[0]['prompt'])
 
+    def test_custom_temperature_is_used_for_generation_and_result(self):
+        result, generate = self.run_loop(
+            [reply(GOOD_ZAK)],
+            [sandbox('pass')],
+            temperature=0.7,
+        )
+
+        self.assertEqual(generate.call_args.kwargs['temperature'], 0.7)
+        self.assertEqual(result.temperature, 0.7)
+
     def test_cli_writes_a_json_result(self):
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.object(run, 'generate', return_value=reply(GOOD_PYTHON)), \
