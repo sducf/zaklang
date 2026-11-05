@@ -116,7 +116,7 @@ fn guard_complexity(source: &str) -> Result<()> {
     let mut escaped = false;
     let mut nesting = 0usize;
     let mut unary_run = 0usize;
-    let mut branches = 0usize;
+    let mut chains = ChainDepth::default();
 
     for (offset, ch) in source.char_indices() {
         if in_string {
@@ -126,6 +126,7 @@ fn guard_complexity(source: &str) -> Result<()> {
                 escaped = true;
             } else if ch == '"' {
                 in_string = false;
+                chains.previous = '"';
             }
         } else {
             match ch {
@@ -141,23 +142,123 @@ fn guard_complexity(source: &str) -> Result<()> {
                 unary_run = 0;
             }
 
-            // Ternaries and elif chains recurse without adding delimiters.
-            // Bound their total markers before Pest builds recursive frames.
-            if ch == '?' {
-                branches += 1;
+            if !ch.is_whitespace() {
+                chains.significant(ch);
             }
 
-            if nesting > 32 || unary_run > 128 || branches > 128 {
-                return Err(CompilerError::new(
-                    ErrorCode::ComplexityLimit,
-                    Some(Span::at_offset(source, offset)),
-                    "Prototype source/nesting budget exceeded",
-                ));
-            }
+            let message = if nesting > 32 || unary_run > 128 {
+                "Prototype source/nesting budget exceeded"
+            } else if chains.depth > CHAIN_BUDGET {
+                "Conditional chain depth exceeds 128"
+            } else {
+                continue;
+            };
+
+            return Err(CompilerError::new(
+                ErrorCode::ComplexityLimit,
+                Some(Span::at_offset(source, offset)),
+                message,
+            ));
         }
     }
 
     Ok(())
+}
+
+const CHAIN_BUDGET: usize = 128;
+
+/// Bounds how deeply `?` markers chain before pest builds recursive frames.
+///
+/// Elif chains (`?a{}:?b{}`) and nested or chained ternaries (`a?b:c?d:e`)
+/// recurse once per `?` without adding delimiters, so delimiter nesting alone
+/// does not bound pest's stack. Each open delimiter keeps the depth of the
+/// chain inside it, and `depth` sums them along the current nesting.
+///
+/// A chain ends when its delimiter closes, at `;` or `,`, or after a block's
+/// `}` that is not followed by `:` (elif/else). Independent conditionals
+/// therefore do not add up, however many a program contains. The count must
+/// never be lower than pest's recursion, so a `{` counts as a block only where
+/// a map literal cannot appear: after an operand (name, literal, `)`, `]`,
+/// `}`, type) or as an else block after `}:`. A map literal's `}` never ends a
+/// ternary chain.
+#[derive(Default)]
+struct ChainDepth {
+    /// Chain depth per open delimiter; index 0 is the top level.
+    levels: Vec<ChainLevel>,
+    depth: usize,
+    previous: char,
+    /// The previous significant character is a `:` right after a block.
+    else_colon: bool,
+}
+
+#[derive(Default)]
+struct ChainLevel {
+    chain: usize,
+    /// This level was opened by a block's `{`.
+    block: bool,
+    /// A block nested directly in this level has just closed.
+    after_block: bool,
+}
+
+impl ChainDepth {
+    fn top(&mut self) -> &mut ChainLevel {
+        if self.levels.is_empty() {
+            self.levels.push(ChainLevel::default());
+        }
+        self.levels.last_mut().unwrap_or_else(|| unreachable!())
+    }
+
+    fn end_chain(&mut self) {
+        let ended = std::mem::take(&mut self.top().chain);
+        self.depth -= ended;
+    }
+
+    fn significant(&mut self, ch: char) {
+        let mut else_colon = false;
+
+        if std::mem::take(&mut self.top().after_block) {
+            if ch == ':' {
+                else_colon = true;
+            } else {
+                // The if statement (and any elif chain) at this level is over.
+                self.end_chain();
+            }
+        }
+
+        match ch {
+            '{' => {
+                let previous = self.previous;
+                let block = self.else_colon
+                    || previous.is_ascii_alphanumeric()
+                    || matches!(previous, '_' | '"' | ')' | ']' | '}');
+                self.top();
+                self.levels.push(ChainLevel {
+                    block,
+                    ..ChainLevel::default()
+                });
+            }
+            '(' | '[' => {
+                self.top();
+                self.levels.push(ChainLevel::default());
+            }
+            ')' | ']' | '}' if self.levels.len() > 1 => {
+                let closed = self.levels.pop().unwrap_or_default();
+                self.depth -= closed.chain;
+                if ch == '}' && closed.block {
+                    self.top().after_block = true;
+                }
+            }
+            ';' | ',' => self.end_chain(),
+            '?' => {
+                self.top().chain += 1;
+                self.depth += 1;
+            }
+            _ => (),
+        }
+
+        self.else_colon = else_colon;
+        self.previous = ch;
+    }
 }
 
 struct Builder {
