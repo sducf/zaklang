@@ -1,19 +1,19 @@
 # Tests for each area of the repository. Nothing here needs Docker, the GPU, a live database, or a secret.
 #
 # Run each job locally from the repository root, in a Python 3.12 virtual environment:
-#   compiler:   pip install -r compiler/requirements-dev.txt
+#   compiler:   pip install -r zakc/requirements-dev.txt
 #               cargo test --manifest-path zakc/Cargo.toml
 #               PYO3_BUILD_EXTENSION_MODULE=1 cargo build --manifest-path zakc/Cargo.toml --features python --lib
 #               mkdir -p zakc/target/python && cp zakc/target/debug/libzakc.so zakc/target/python/zakc.so
 #               PYTHONPATH="$PWD/zakc/target/python:$PWD" python -m pytest -c zakc/pytest.ini zakc/tests -m "not docker"
-#   zakbench:   pip install -r compiler/requirements.txt httpx
+#   zakbench:   pip install ./zakc httpx
 #               python -m unittest discover -s zakbench/tests -t .
 #               for f in zakbench/tasks/*/task.json zakbench/tasks/*/hidden_tests.json; do python -m json.tool "$f" > /dev/null || exit 1; done
-#               python -m compiler.src zakbench/tasks
+#               cargo run --release --manifest-path zakc/Cargo.toml -- --emit check zakbench/tasks
 #               python -m py_compile zakbench/tasks/*/reference.py
-#   sandbox:    pip install -r compiler/requirements-dev.txt
+#   sandbox:    pip install -r zakc/requirements-dev.txt
 #               python -m pytest sandbox/tests
-#   backend:    pip install -r backend/requirements.txt
+#   backend:    cd backend && pip install -r requirements.txt   (builds ../zakc, so it needs Rust)
 #               cd backend && DATABASE_URL=sqlite:// python -m unittest discover -s tests
 #   playground: cd playground && npm install --legacy-peer-deps && npm run lint && npm run build   (Node 20.19.3)
 
@@ -38,8 +38,8 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: compiler/requirements*.txt
-      - run: pip install -r compiler/requirements-dev.txt
+          cache-dependency-path: zakc/requirements-dev.txt
+      - run: pip install -r zakc/requirements-dev.txt
       - name: Run the native zakc tests
         run: cargo test --manifest-path zakc/Cargo.toml
       - name: Build the zakc Python extension
@@ -65,8 +65,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: compiler/requirements*.txt
-      - run: pip install -r compiler/requirements.txt httpx
+          cache-dependency-path: zakc/pyproject.toml
+      # Builds the zakc PyO3 extension with maturin; the runner image ships a Rust toolchain.
+      - run: pip install ./zakc httpx
       - name: Run the ZakBench tests
         run: python -m unittest discover -s zakbench/tests -t .
       - name: Check that every task.json and hidden_tests.json parses
@@ -75,7 +76,7 @@ jobs:
             python -m json.tool "$file" > /dev/null || { echo "::error file=$file::$file is not valid JSON"; exit 1; }
           done
       - name: Check that every reference.zak compiles
-        run: python -m compiler.src zakbench/tasks
+        run: cargo run --release --manifest-path zakc/Cargo.toml -- --emit check zakbench/tasks
       - name: Check that every reference.py compiles
         run: python -m py_compile zakbench/tasks/*/reference.py
 
@@ -90,8 +91,8 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: compiler/requirements*.txt
-      - run: pip install -r compiler/requirements-dev.txt
+          cache-dependency-path: zakc/requirements-dev.txt
+      - run: pip install -r zakc/requirements-dev.txt
       # These tests replace Docker with mocks.
       - run: python -m pytest sandbox/tests
 

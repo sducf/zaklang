@@ -19,6 +19,27 @@ The current schema includes:
 - `attempts`
 - `evaluations`
 
+## Zak compiler
+
+`POST /compile` and every Zak benchmark run (through
+`sandbox.runner.evaluate`) use the Rust compiler `zakc` through its PyO3
+extension module. `requirements.txt` installs it from `../zakc`, so run the
+install from this directory with a Rust toolchain available (maturin builds
+the extension; no separate step is needed):
+
+```sh
+cd backend
+pip install -r requirements.txt
+```
+
+The backend calls `zakc.zak_transpile(source)` and maps the
+`zakc.ZakCompileError.errors` diagnostics (`code`, `line`, `col`, `message`)
+to the API's `CompilerError` shape. The compiler releases the GIL while it
+runs, so concurrent requests in FastAPI's threadpool compile in parallel. It
+never executes Zak or the generated Python. See
+[the benchmark report](../docs/benchmarks/compiler-comparison/REPORT.md) for
+the measured difference from the retired Python compiler.
+
 ## API Layout
 
 FastAPI route modules live under `api/routes/`:

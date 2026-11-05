@@ -1,5 +1,10 @@
 # Rust compiler assessment
 
+> **Historical.** This assessment predates the migration. The Python compiler
+> has since been removed and the backend, sandbox, and ZakBench use `zakc`
+> through its PyO3 module. See
+> [the benchmark report](../docs/benchmarks/compiler-comparison/REPORT.md).
+
 ## Recommendation
 
 Rust is a workable choice for this project's compiler, particularly with two

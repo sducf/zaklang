@@ -6,7 +6,8 @@ code against ZakBench hidden tests.
 ## Architecture
 
 1. The trusted runner loads the task and hidden tests.
-2. For Zak submissions, the compiler transpiles Zak to Python.
+2. For Zak submissions, the Rust compiler (`zakc.zak_transpile`, on the
+   trusted host) transpiles Zak to Python.
 3. The runner creates a temporary file with test inputs only.
 4. Docker executes the candidate and returns its actual outputs.
 5. The trusted runner compares outputs with expected answers.

@@ -28,3 +28,11 @@ thiserror = "2"
 [[bin]]
 name = "zakc"
 path = "src/main.rs"
+
+# Maximum portable optimization. panic stays "unwind": PyO3 converts Rust
+# panics into Python exceptions, while "abort" would kill the host process.
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+debug = false

@@ -27,7 +27,7 @@ pub fn zak_transpile(source: &str) -> Result<TranspiledProgram, Vec<CompilerErro
 #[cfg(feature = "python")]
 #[pyo3::pymodule]
 mod zakc {
-    use pyo3::{exceptions::PyValueError, prelude::*};
+    use pyo3::{exceptions::PyValueError, prelude::*, types::PyList};
 
     #[pymodule_export]
     use super::CheckedProgram;
@@ -38,30 +38,51 @@ mod zakc {
     #[pymodule_export]
     use super::TranspiledProgram;
 
-    struct PythonErrors(Vec<CompilerError>);
+    pyo3::create_exception!(
+        zakc,
+        ZakCompileError,
+        PyValueError,
+        "Invalid Zak source; `errors` holds the CompilerError diagnostics."
+    );
 
-    impl From<PythonErrors> for PyErr {
-        fn from(errors: PythonErrors) -> Self {
-            PyValueError::new_err(
-                errors
-                    .0
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            )
+    #[pymodule_init]
+    fn init(module: &Bound<'_, PyModule>) -> PyResult<()> {
+        module.add("ZakCompileError", module.py().get_type::<ZakCompileError>())
+    }
+
+    /// Raise ZakCompileError with the diagnostics text and structured `errors`.
+    fn compile_error(py: Python<'_>, errors: Vec<CompilerError>) -> PyErr {
+        let message = errors
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let error = ZakCompileError::new_err(message);
+        let attached = errors
+            .into_iter()
+            .map(|diagnostic| Py::new(py, diagnostic))
+            .collect::<PyResult<Vec<_>>>()
+            .and_then(|diagnostics| PyList::new(py, diagnostics))
+            .and_then(|diagnostics| error.value(py).setattr("errors", diagnostics));
+
+        match attached {
+            Ok(()) => error,
+            Err(failure) => failure,
         }
     }
 
-    /// Check Zak source, raising ValueError with diagnostics for invalid programs.
+    /// Check Zak source, raising ZakCompileError for invalid programs.
+    /// The GIL is released while compiling so other Python threads can run.
     #[pyfunction]
-    fn zak_check(source: &str) -> Result<CheckedProgram, PythonErrors> {
-        super::zak_check(source).map_err(PythonErrors)
+    fn zak_check(py: Python<'_>, source: &str) -> PyResult<CheckedProgram> {
+        py.detach(|| super::zak_check(source))
+            .map_err(|errors| compile_error(py, errors))
     }
 
-    /// Generate Python without executing it, raising ValueError on compiler errors.
+    /// Generate Python without executing it, raising ZakCompileError on compiler errors.
     #[pyfunction]
-    fn zak_transpile(source: &str) -> Result<TranspiledProgram, PythonErrors> {
-        super::zak_transpile(source).map_err(PythonErrors)
+    fn zak_transpile(py: Python<'_>, source: &str) -> PyResult<TranspiledProgram> {
+        py.detach(|| super::zak_transpile(source))
+            .map_err(|errors| compile_error(py, errors))
     }
 }

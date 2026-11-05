@@ -369,14 +369,12 @@ def evaluate(
 
     if language == "zak":
         # Compile Zak on the trusted side; do not execute it here. -H
-        from compiler.src import (
-            compile as zak_compile,
-            transpile,
-        )
+        import zakc
 
-        checked = zak_compile(source)
+        try:
+            source = zakc.zak_transpile(source).source
 
-        if not checked.ok or checked.ast is None:
+        except zakc.ZakCompileError as error:
             return SandboxResult(
                 outcome="not_run",
                 tests_passed=0,
@@ -385,26 +383,13 @@ def evaluate(
                 compile_ok=False,
                 compile_errors=[
                     {
-                        "line": error.line,
-                        "col": error.col,
-                        "code": error.code,
-                        "message": error.message,
+                        "line": diagnostic.line,
+                        "col": diagnostic.col,
+                        "code": diagnostic.code,
+                        "message": diagnostic.message,
                     }
-                    for error in checked.errors
+                    for diagnostic in error.errors
                 ],
-            )
-
-        try:
-            source = transpile(checked.ast)
-
-        except Exception:
-            return SandboxResult(
-                outcome="not_run",
-                tests_passed=0,
-                tests_total=tests_total,
-                execution_ms=0,
-                compile_ok=False,
-                detail="Zak transpilation failed",
             )
 
         transpiled = source
