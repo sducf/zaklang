@@ -24,7 +24,7 @@ process. Executing the generated Python (Docker) is excluded.
 - **Memory:** importing zakc costs 1.2 MiB of RSS against 7.9 MiB for the Python compiler (Lark grammar tables plus modules). Peak RSS for the full corpus is 21 MiB against 30 MiB. Per-compile Python heap drops from 44 KiB (median) to about 0.1 KiB, because zakc's allocations are native and freed before it returns.
 - **Cold start:** `import zakc` adds 0.8 ms to interpreter startup, against 48 ms for `import compiler.src`. The `zakc` CLI checks one file in 1.6 ms, against 97 ms for `python -m compiler.src`.
 - **Compiler flags barely matter here.** Fat LTO with one codegen unit was within noise of the default release profile, and `-C target-cpu=native` gained 2%. The remaining time is in pest and the RustPython re-parse (see Profiles), not in code generation quality.
-- **Behavior difference to know about:** zakc rejects programs with more than 128 `?` markers in total (`COMPLEXITY_LIMIT`), about 100 typical task functions or 10 KiB. The Python compiler has no such limit. Every benchmark solution is far below it, but the "all references" width series below stops there for both zakc variants.
+- **Behavior difference, since fixed in SD-71:** zakc rejected programs with more than 128 `?` markers in total (`COMPLEXITY_LIMIT`), about 100 typical task functions or 10 KiB. The Python compiler has no such limit. SD-71 bounds chain *depth* instead, and the "all references" width series now compiles at every size (see [After SD-71](#after-sd-71-conditional-chain-depth)).
 
 ## Method
 
@@ -193,13 +193,29 @@ Growth exponent (log-log slope, time vs bytes): Python (legacy) ≈ n^1.05 (3.2�
 
 Growth exponent (log-log slope, time vs bytes): Python (legacy) ≈ n^0.88 (0.0–0.4 KiB); zakc @ main ≈ n^1.10 (0.0–0.4 KiB); zakc + line index ≈ n^0.88 (0.0–0.4 KiB).
 
+### After SD-71: conditional chain depth
+
+The SD-71 budget counts how deeply `?` markers chain rather than how many
+appear. The "all references" series, rejected above from 100 functions, now
+compiles at every size (zakc + line index + SD-71, same machine and method):
+
+| Functions | KiB | zakc ms | Python (legacy) ms, from the table above | Speed-up | zakc peak RSS MiB |
+|---:|---:|---:|---:|---:|---:|
+| 100 | 10.3 | 8.90 | 73.18 | 8.2× | 25 |
+| 200 | 20.7 | 17.69 | 151.64 | 8.6× | 29 |
+| 400 | 41.4 | 38.20 | 338.19 | 8.9× | 38 |
+| 800 | 82.9 | 75.06 | 656.87 | 8.8× | 55 |
+| 1600 | 166.6 | 177.08 | 1,394.00 | 7.9× | 89 |
+| 3200 | 334.2 | 362.38 | 2,929.78 | 8.1× | 157 |
+| 6400 | 669.5 | 719.65 | — | — | 293 |
+
 Time against size is linear for Python and for zakc + line index, and quadratic for zakc @ main. The crossover is around 3–5 KiB: below it zakc @ main still wins on constant factors; above it the rescan dominates. Nesting depth grows cost roughly linearly in every implementation up to 28 levels, which is near zakc's delimiter-nesting budget of 32.
 
 ## Conclusions
 
 1. zakc with the line-index fix is a strict improvement over the Python compiler on every axis measured: about 8–9× lower latency, about 10× fewer instructions, about 4× less memory overhead, and about 60× faster startup. On that basis the backend now uses zakc and `compiler/` has been removed.
 2. Without the fix, zakc would have been a performance regression for any program above about 5 KiB. The quadratic growth was invisible in the existing small-corpus benchmark (`zakc/benchmark-results.json`), which is why this report includes the scaling series.
-3. Follow-ups worth ticketing: (a) replace the total-`?` budget with a real elif/ternary chain-depth budget, so wide valid programs are not rejected; (b) skip or make optional the RustPython re-parse on the backend path (about 30% of compile time); (c) reduce per-node allocation.
+3. Follow-ups: (a) SD-71 replaced the total-`?` budget with a chain-depth budget, so wide valid programs compile; (b) SD-72 skips the RustPython re-parse on the backend path (about 30% of compile time); (c) SD-73 reduces per-node allocation.
 
 ## Reproduce
 

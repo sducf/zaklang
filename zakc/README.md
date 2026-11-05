@@ -209,12 +209,16 @@ zakc/target/release/examples/throughput 200
 ## Prototype limits
 
 The parser conservatively limits input to 1 MB, delimiter nesting to 32,
-consecutive unary operators to 128, and total `?` markers outside strings to 128. The AST/checker also applies a depth budget of 128. Small host thread
+consecutive unary operators to 128, and conditional chain depth to 128. The AST/checker also applies a depth budget of 128. Small host thread
 stacks use `stacker` to provide a bounded larger stack for recursive stages.
 These budgets are deliberately conservative, including for wide programs;
-they are not language-spec limits. The total `?` budget in particular rejects
-otherwise valid programs with more than 128 conditionals or ternaries
-(roughly 10 KB of typical task code); real benchmark solutions are far below
-it, but it is a known difference from the retired Python compiler. Span
+they are not language-spec limits. Conditional chain depth counts how deeply
+`?` markers chain (elif chains and nested or chained ternaries), summed over
+enclosing delimiters, because pest recurses once per chained `?` without a
+delimiter; without the budget, a 5,000-deep chain overflows the stack. Independent
+conditionals do not add up, so programs may contain any number of them. A chain
+ends at `;`, `,`, its closing delimiter, or a block's `}` not followed by `:`;
+a map literal's `}` never ends one, so the count cannot fall below pest's
+recursion (`tests/budgets.rs` fuzzes this). Span
 coordinates come from a line index built once per parse, so per-node cost does
 not depend on the source length.
