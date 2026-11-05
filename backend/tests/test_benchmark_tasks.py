@@ -243,6 +243,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         payload = benchmark_routes.RunCreateRequest(
             task_id="array_sum",
             language=benchmark.Language.PYTHON,
+            temperature=0.7,
             source="def solve(nums): return sum(nums)",
         )
 
@@ -256,11 +257,15 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual(response.status, benchmark.RunStatus.QUEUED)
         self.assertEqual(response.attempts, [])
         self.assertEqual(response.model_name, "Llama 3.1 8B Instruct")
+        self.assertEqual(response.temperature, 0.7)
         self.assertEqual(len(background_tasks.calls), 1)
         function, args = background_tasks.calls[0]
         self.assertIs(function, benchmark.execute_run_in_background)
         self.assertEqual(args[0], response.id)
-        self.assertEqual(args[1:], ("array_sum", benchmark.Language.PYTHON, payload.source))
+        self.assertEqual(
+            args[1:],
+            ("array_sum", benchmark.Language.PYTHON, payload.source, 0.7),
+        )
 
     def test_run_reads_are_scoped_to_the_current_user(self):
         owned_run = benchmark.create_queued_run(

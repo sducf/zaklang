@@ -88,6 +88,7 @@ def create_run_pair(
             payload.task_id,
             Language(run.language),
             None,
+            payload.temperature,
         )
     return PairCreateResponse(
         pair_id=pair_id,
@@ -107,7 +108,13 @@ def create_run(
     db: Session = Depends(get_db),
 ) -> RunResponse:
     get_task_controller(payload.task_id)
-    run = create_queued_run(db, user, payload.task_id, payload.language)
+    run = create_queued_run(
+        db,
+        user,
+        payload.task_id,
+        payload.language,
+        temperature=payload.temperature,
+    )
     db.commit()
     db.refresh(run)
     background_tasks.add_task(
@@ -116,6 +123,7 @@ def create_run(
         payload.task_id,
         payload.language,
         payload.source,
+        payload.temperature,
     )
     return run_to_response(run)
 

@@ -69,6 +69,7 @@ class CompileResponse(BaseModel):
 class RunCreateRequest(BaseModel):
     task_id: str = Field(pattern=TASK_ID_PATTERN)
     language: Language
+    temperature: float | None = None
     source: str | None = Field(default=None, max_length=20_000)
 
 

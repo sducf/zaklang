@@ -104,7 +104,8 @@ returned by these endpoints.
 ### Authenticated run endpoints
 
 - `POST /runs` creates a `queued` run and schedules the single-run worker with
-  FastAPI `BackgroundTasks`.
+  FastAPI `BackgroundTasks`. It accepts an optional `temperature`; omitted
+  values use the runner default of `0.0`.
 - `POST /runs/pair` creates one queued Zak run and one queued Python run for
   the same task, linked by a shared `pair_id`, and schedules both workers.
   The request accepts `task_id` and an optional `temperature`; the response

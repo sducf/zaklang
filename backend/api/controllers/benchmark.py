@@ -211,6 +211,7 @@ def execute_run_in_background(
     task_id: str,
     language: Language,
     source: str | None,
+    temperature: float | None = None,
 ) -> None:
     """Execute a run using a fresh database session after the response."""
     db = SessionLocal()
@@ -236,6 +237,7 @@ def execute_run_in_background(
             SEED,
             max_attempts=MAX_ATTEMPTS,
             source=source,
+            temperature=temperature,
         )
         _persist_run_result(db, run, result)
     except Exception:
