@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 TASK_ID_PATTERN = r"^[a-z0-9_]+$"
-MIN_SEED = -(2**31)
+MIN_SEED = 0
 MAX_SEED = 2**31 - 1
 MIN_TEMPERATURE = 0.0
 MAX_TEMPERATURE = 2.0
