@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+import zakc
 
 from api.schemas.benchmark import (
     TASK_ID_PATTERN,
@@ -122,35 +123,16 @@ def get_task_controller(task_id: str) -> TaskResponse:
 
 def compile_controller(source: str) -> CompileResponse:
     """Compile and transpile Zak source without executing generated Python."""
-    if str(REPOSITORY_ROOT) not in sys.path:
-        sys.path.insert(0, str(REPOSITORY_ROOT))
-
-    from compiler.src import TranspileError, compile as compile_zak, transpile
-
-    result = compile_zak(source)
-    if not result.ok:
-        return CompileResponse(
-            ok=False,
-            errors=[_compiler_error(error) for error in result.errors],
-            python=None,
-        )
-
-    if result.ast is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Compiler returned a successful result without an AST",
-        )
-
     try:
-        python_source = transpile(result.ast)
-    except TranspileError as exc:
+        program = zakc.zak_transpile(source)
+    except zakc.ZakCompileError as exc:
         return CompileResponse(
             ok=False,
             errors=[_compiler_error(error) for error in exc.errors],
             python=None,
         )
 
-    return CompileResponse(ok=True, errors=[], python=python_source)
+    return CompileResponse(ok=True, errors=[], python=program.source)
 
 
 def _compiler_error(error: Any) -> CompilerError:

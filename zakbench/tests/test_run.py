@@ -71,7 +71,7 @@ class RunSingleTest(unittest.TestCase):
         self.assertEqual(second_prompt[1], {'role': 'assistant', 'content': BAD_ZAK})
         self.assertIn(error, second_prompt[2]['content'])
         self.assertTrue(second['compile_ok'])
-        self.assertIn("globals()['solve']", second['transpiled_python'])
+        self.assertIn('globals()["solve"]', second['transpiled_python'])
 
         self.assertTrue(result.passed)
         self.assertEqual(result.attempts_used, 2)

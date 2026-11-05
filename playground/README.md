@@ -25,4 +25,4 @@ The pipeline loads **demo fixtures**, not live inference or compiler responses. 
 
 Public statements and example solutions live in `src/lib/demo.ts`; local history lives in `src/lib/run-store.ts`. The existing `src/lib/api.ts` helper and Query provider are retained for future FastAPI integration. `VITE_API_URL` is reserved for that integration and does not enable a live backend in this prototype.
 
-The reference syntax follows `../compiler/src/grammar.txt` (Zak Core v0.1). The compiler’s grammar remains the source of truth.
+The reference syntax follows `../zakc/src/zak.pest` (Zak Core v0.1). The compiler’s grammar remains the source of truth.

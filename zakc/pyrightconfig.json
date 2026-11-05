@@ -1,5 +1,5 @@
 {
-  "include": ["tests", "zakc.pyi", "compare.py", "benchmark.py"],
+  "include": ["tests", "zakc.pyi"],
   "extraPaths": [".", ".."],
   "venvPath": "..",
   "venv": ".venv",
