@@ -69,6 +69,7 @@ def run_single(
     max_attempts=3,
     source=None,
     temperature=None,
+    max_tokens=None,
 ):
     """Run one task in one language for up to max_attempts and return the result.
 
@@ -82,6 +83,8 @@ def run_single(
         raise ValueError('max_attempts must be at least 1')
     if temperature is None:
         temperature = TEMPERATURE
+    if max_tokens is None:
+        max_tokens = MAX_TOKENS
     task = load_task(task_id)
     messages = [{'role': 'user', 'content': build_prompt(task, language, spec_version)}]
 
@@ -95,7 +98,7 @@ def run_single(
             generation = generate(
                 messages,
                 seed=seed,
-                max_tokens=MAX_TOKENS,
+                max_tokens=max_tokens,
                 temperature=temperature,
             )
             completion, code = generation.text, extract_code(generation.text)
@@ -135,7 +138,7 @@ def run_single(
     last = attempts[-1]
     return RunResult(
         task_id=task_id, language=language, model_id=model_id, spec_version=spec_version,
-        prompt_version=prompt_version, seed=seed, temperature=temperature, max_tokens=MAX_TOKENS,
+        prompt_version=prompt_version, seed=seed, temperature=temperature, max_tokens=max_tokens,
         max_attempts=max_attempts, source_provided=source is not None,
         exec_outcome=last['exec_outcome'], compile_ok=last['compile_ok'],
         tests_passed=last['tests_passed'], tests_total=last['tests_total'],

@@ -110,6 +110,16 @@ class RunSingleTest(unittest.TestCase):
         self.assertEqual(generate.call_args.kwargs['temperature'], 0.7)
         self.assertEqual(result.temperature, 0.7)
 
+    def test_custom_token_limit_is_used_for_generation_and_result(self):
+        result, generate = self.run_loop(
+            [reply(GOOD_ZAK)],
+            [sandbox('pass')],
+            max_tokens=256,
+        )
+
+        self.assertEqual(generate.call_args.kwargs['max_tokens'], 256)
+        self.assertEqual(result.max_tokens, 256)
+
     def test_cli_writes_a_json_result(self):
         with tempfile.TemporaryDirectory() as tmp, \
                 patch.object(run, 'generate', return_value=reply(GOOD_PYTHON)), \
