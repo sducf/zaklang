@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -71,6 +72,16 @@ class RunCreateRequest(BaseModel):
     source: str | None = Field(default=None, max_length=20_000)
 
 
+class PairCreateRequest(BaseModel):
+    task_id: str = Field(pattern=TASK_ID_PATTERN)
+    temperature: float | None = None
+
+
+class PairCreateResponse(BaseModel):
+    pair_id: UUID
+    run_ids: list[int] = Field(min_length=2, max_length=2)
+
+
 class AttemptResponse(BaseModel):
     """Public result and resource-usage details for one generation attempt."""
 
@@ -92,6 +103,7 @@ class RunResponse(BaseModel):
     """Aggregate result for a run, including its individual attempts."""
 
     id: int
+    pair_id: UUID | None
     task_id: str
     language: Language
     model_name: str
@@ -110,6 +122,7 @@ class RunResponse(BaseModel):
 
 class RunListItem(BaseModel):
     id: int
+    pair_id: UUID | None
     task_id: str
     language: Language
     status: RunStatus

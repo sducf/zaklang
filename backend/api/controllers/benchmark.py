@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import sys
 from typing import Any
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
 from sqlalchemy import func
@@ -166,6 +167,7 @@ def create_queued_run(
     task_id: str,
     language: Language,
     temperature: float | None = None,
+    pair_id: UUID | None = None,
 ) -> BenchmarkRun:
     """Add a queued run and flush it so its ID is available to the caller."""
     run = BenchmarkRun(
@@ -174,11 +176,34 @@ def create_queued_run(
         language=language.value,
         model_name=MODEL_NAME,
         temperature=temperature,
+        pair_id=pair_id,
         status=RunStatus.QUEUED.value,
     )
     db.add(run)
     db.flush()
     return run
+
+
+def create_queued_pair(
+    db: Session,
+    user: User,
+    task_id: str,
+    temperature: float | None = None,
+) -> tuple[UUID, list[BenchmarkRun]]:
+    """Add the two queued runs for one matched benchmark pair."""
+    pair_id = uuid4()
+    runs = [
+        create_queued_run(
+            db,
+            user,
+            task_id,
+            language,
+            temperature=temperature,
+            pair_id=pair_id,
+        )
+        for language in (Language.ZAK, Language.PYTHON)
+    ]
+    return pair_id, runs
 
 
 def execute_run_in_background(
@@ -322,6 +347,29 @@ def get_run_for_user(db: Session, user: User, run_id: int) -> RunResponse:
     return run_to_response(run)
 
 
+def get_pair_for_user(
+    db: Session,
+    user: User,
+    pair_id: UUID,
+) -> list[RunResponse]:
+    """Return both runs only when the pair belongs to the current user."""
+    runs = (
+        db.query(BenchmarkRun)
+        .filter(
+            BenchmarkRun.pair_id == pair_id,
+            BenchmarkRun.user_id == user.id,
+        )
+        .order_by(BenchmarkRun.id)
+        .all()
+    )
+    if not runs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Pair not found",
+        )
+    return [run_to_response(run) for run in runs]
+
+
 def run_to_response(run: BenchmarkRun) -> RunResponse:
     """Convert a persisted run and its related rows to the public response."""
     attempts = [
@@ -330,6 +378,7 @@ def run_to_response(run: BenchmarkRun) -> RunResponse:
     ]
     return RunResponse(
         id=run.id,
+        pair_id=run.pair_id,
         task_id=run.task_id,
         language=Language(run.language),
         model_name=run.model_name,
@@ -357,6 +406,7 @@ def run_to_list_item(
     """Convert a persisted run to the user-scoped list response."""
     return RunListItem(
         id=run.id,
+        pair_id=run.pair_id,
         task_id=run.task_id,
         language=Language(run.language),
         status=RunStatus(run.status),
