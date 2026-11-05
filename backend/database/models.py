@@ -86,10 +86,28 @@ class BenchmarkRun(Base):
         index=True,
     )
 
+    # Set only for runs that a CLI suite run stored with --persist.
+    suite_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("suite_runs.id", name="fk_benchmark_runs_suite_run_id_suite_runs"),
+        nullable=True,
+        index=True,
+    )
+
+    suite_run: Mapped["SuiteRun | None"] = relationship(
+        back_populates="runs",
+    )
+
     # Matches the task id defined in ZakBench, such as "array_sum". -H
     task_id: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
+    )
+
+    # The task's category when a CLI suite stored this run, so a stored
+    # suite summary does not depend on the current task.json.
+    category: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
     )
 
     # Expected values are currently "python" or "zak". -H
@@ -161,6 +179,81 @@ class BenchmarkRun(Base):
     attempts: Mapped[list["Attempt"]] = relationship(
         back_populates="run",
         cascade="all, delete-orphan",
+    )
+
+
+# Stores one matched Zak vs Python suite run that the ZakBench CLI
+# launched with --persist. Its runs link back through suite_run_id.
+class SuiteRun(Base):
+    __tablename__ = "suite_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    # The CLI's own id, such as "dev-20261105T120000000000Z". It names the
+    # results folder and the string pair ids in the run JSON files.
+    cli_suite_run_id: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        unique=True,
+    )
+
+    # Task suite name. Only "dev" exists today.
+    suite: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+    )
+
+    model_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+
+    seed: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    prompt_version: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    spec_version: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    max_attempts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    # running, completed, or failed.
+    status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="running",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    # The user who launched the suite from the CLI.
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", name="fk_suite_runs_user_id_users"),
+        nullable=False,
+    )
+
+    runs: Mapped[list["BenchmarkRun"]] = relationship(
+        back_populates="suite_run",
     )
 
 

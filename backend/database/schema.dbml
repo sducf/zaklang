@@ -15,8 +15,10 @@ Table benchmark_runs {
 
   user_id uuid [not null]
   pair_id uuid
+  suite_run_id integer [note: "Set for runs that a CLI suite stored with --persist"]
 
   task_id varchar(100) [not null, note: "References a ZakBench task ID"]
+  category varchar(50) [note: "Task category, set for runs that a CLI suite stored with --persist"]
   language varchar(20) [not null, note: "Expected values: python or zak"]
   model_name varchar(255) [not null]
 
@@ -34,7 +36,27 @@ Table benchmark_runs {
 
   indexes {
     (pair_id) [name: 'ix_benchmark_runs_pair_id']
+    (suite_run_id) [name: 'ix_benchmark_runs_suite_run_id']
   }
+}
+
+Table suite_runs {
+  id integer [pk, increment]
+
+  cli_suite_run_id varchar(100) [not null, unique, note: "The CLI's id, such as dev-20261105T120000000000Z"]
+  suite varchar(20) [not null, note: "Only dev today"]
+  model_name varchar(255) [not null]
+  seed integer [not null]
+  prompt_version varchar(50) [not null]
+  spec_version varchar(50)
+  max_attempts integer [not null]
+
+  status varchar(20) [not null, note: "running, completed, or failed"]
+
+  created_at timestamptz [not null]
+  finished_at timestamptz
+
+  user_id uuid [not null, note: "The user who launched the suite from the CLI"]
 }
 Table attempts {
   id integer [pk, increment]
@@ -90,3 +112,9 @@ Ref: evaluations.attempt_id - attempts.id
 
 // One user can own many benchmark runs. -H
 Ref: benchmark_runs.user_id > users.id
+
+// One suite run contains one Zak run and one Python run for each task.
+Ref: benchmark_runs.suite_run_id > suite_runs.id
+
+// One user can launch many suite runs.
+Ref: suite_runs.user_id > users.id

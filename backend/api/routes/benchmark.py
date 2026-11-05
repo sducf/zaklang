@@ -15,10 +15,13 @@ from api.schemas.benchmark import (
     RunCreateRequest,
     RunListItem,
     RunResponse,
+    SuiteDetailResponse,
+    SuiteResponse,
     TASK_ID_PATTERN,
     TaskResponse,
 )
 from api.controllers.auth import get_current_user_controller
+from api.controllers.suites import get_suite, list_suites
 from api.controllers.benchmark import (
     compile_controller,
     create_queued_pair,
@@ -156,3 +159,20 @@ def list_runs(
     db: Session = Depends(get_db),
 ) -> list[RunListItem]:
     return list_runs_for_user(db, user)
+
+
+@router.get("/suites", response_model=list[SuiteResponse])
+def list_suite_runs(
+    user: User = Depends(get_current_user_controller),
+    db: Session = Depends(get_db),
+) -> list[SuiteResponse]:
+    return list_suites(db)
+
+
+@router.get("/suites/{suite_id}", response_model=SuiteDetailResponse)
+def get_suite_run(
+    suite_id: int,
+    user: User = Depends(get_current_user_controller),
+    db: Session = Depends(get_db),
+) -> SuiteDetailResponse:
+    return get_suite(db, suite_id)

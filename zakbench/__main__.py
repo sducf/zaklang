@@ -2,10 +2,12 @@
 
     python3 -m zakbench run --task array_sum --lang zak
     python3 -m zakbench run --suite dev --lang both --model <id> --seed 0
+    python3 -m zakbench run --suite dev --lang both --persist --user-email <email>   (also needs DATABASE_URL)
     python3 -m zakbench summarize zakbench/results/<suite_run_id>/
 """
 
 import argparse
+from pathlib import Path
 import sys
 
 from zakbench.runners.inference import InferenceError
@@ -14,7 +16,28 @@ from zakbench.runners.run import RESULTS, run_single, write_result
 from zakbench.runners.suite import SUITES, load_runs, run_suite, write_summary
 
 
-def main(argv=None, results_dir=RESULTS):
+def open_store(user_email):
+    """Connect to DATABASE_URL with the backend's own models and helpers."""
+    backend = Path(__file__).resolve().parents[1] / 'backend'
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from sqlalchemy.exc import SQLAlchemyError
+    from database.db import SessionLocal
+    from api.controllers.suites import SuiteStore
+
+    db = SessionLocal()
+    try:
+        return SuiteStore(db, user_email)
+    except SQLAlchemyError as error:
+        db.close()
+        # Only the class name: the full message can contain the DATABASE_URL and its password.
+        raise RuntimeError(f'could not reach the database ({type(error).__name__})') from None
+    except Exception:
+        db.close()
+        raise
+
+
+def main(argv=None, results_dir=RESULTS, open_store=open_store):
     parser = argparse.ArgumentParser(prog='zakbench')
     commands = parser.add_subparsers(dest='command', required=True)
     run = commands.add_parser('run', help='run one task in one language, or a suite in both languages')
@@ -27,6 +50,9 @@ def main(argv=None, results_dir=RESULTS):
     run.add_argument('--spec-version', default='0.1')
     run.add_argument('--prompt-version', default=PROMPT_VERSION)
     run.add_argument('--max-attempts', type=int, default=3)
+    run.add_argument('--persist', action='store_true',
+                     help='also write the suite, its runs, and their attempts to the database in DATABASE_URL')
+    run.add_argument('--user-email', help='with --persist: the existing user recorded as the one who launched it')
     summarize = commands.add_parser('summarize', help='write summary.json and runs.csv for a suite run')
     summarize.add_argument('folder')
     args = parser.parse_args(argv)
@@ -40,15 +66,26 @@ def main(argv=None, results_dir=RESULTS):
         _print_summary(summary)
         return 0
 
+    if args.persist and not args.suite:
+        parser.error('--persist needs --suite')
+    if args.persist and not args.user_email:
+        parser.error('--persist needs --user-email')
+
     if args.suite:
         if args.lang != 'both':
             parser.error('--suite needs --lang both')
+        store = None
         try:
+            # Open the store before any inference, so a bad DATABASE_URL or email stops the suite early.
+            store = open_store(args.user_email) if args.persist else None
             result = run_suite(args.suite, args.model, args.seed, args.prompt_version, args.spec_version,
-                               args.max_attempts, results_dir=results_dir)
-        except ValueError as error:
+                               args.max_attempts, results_dir=results_dir, store=store)
+        except (ValueError, RuntimeError) as error:
             print(f'error: {error}', file=sys.stderr)
             return 1
+        finally:
+            if store:
+                store.db.close()
         _print_summary(result.summary)
         print(result.path)
         return 0
