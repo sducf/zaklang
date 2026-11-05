@@ -125,6 +125,52 @@ impl CompilerError {
     }
 }
 
+/// Read-only diagnostic fields for Python callers. Errors without a Zak span
+/// report line and column 1, matching the one-based coordinates of spans.
+#[cfg(feature = "python")]
+#[pyo3::pymethods]
+impl CompilerError {
+    #[getter(code)]
+    fn py_code(&self) -> String {
+        self.code.to_string()
+    }
+
+    #[getter]
+    fn message(&self) -> String {
+        self.error.to_string()
+    }
+
+    #[getter]
+    fn line(&self) -> usize {
+        self.span.map_or(1, |span| span.line)
+    }
+
+    #[getter]
+    fn col(&self) -> usize {
+        self.span.map_or(1, |span| span.col)
+    }
+
+    #[getter]
+    fn end_line(&self) -> usize {
+        self.span.map_or(1, |span| span.end_line)
+    }
+
+    #[getter]
+    fn end_col(&self) -> usize {
+        self.span.map_or(1, |span| span.end_col)
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CompilerError(code={:?}, line={}, col={}, message={:?})",
+            self.code.to_string(),
+            self.line(),
+            self.col(),
+            self.message()
+        )
+    }
+}
+
 fn position(span: &Option<Span>) -> String {
     span.map_or_else(String::new, |span| {
         format!(" at {}:{}", span.line, span.col)

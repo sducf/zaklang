@@ -15,17 +15,44 @@ struct ZakParser;
 type Result<T> = std::result::Result<T, CompilerError>;
 type P<'a> = Pair<'a, Rule>;
 
-fn span(pair: &P<'_>) -> Span {
-    let range = pair.as_span();
-    let (line, col) = range.start_pos().line_col();
-    let (end_line, end_col) = range.end_pos().line_col();
-    Span {
-        start: range.start(),
-        end: range.end(),
-        line,
-        col,
-        end_line,
-        end_col,
+/// Line starts computed once per parse. Pest's `Position::line_col` rescans
+/// the input from offset 0 on every call, which made span construction
+/// O(nodes x source length). Lookups here are a binary search plus, only on
+/// lines containing non-ASCII text, a character count within that line.
+/// Coordinates match pest's: `\n` (including in `\r\n`) ends a line and
+/// columns count characters.
+struct LineIndex {
+    starts: Vec<usize>,
+    ascii: Vec<bool>,
+}
+
+impl LineIndex {
+    fn new(source: &str) -> Self {
+        let starts: Vec<usize> = std::iter::once(0)
+            .chain(source.match_indices('\n').map(|(offset, _)| offset + 1))
+            .collect();
+        let ascii = starts
+            .iter()
+            .enumerate()
+            .map(|(index, &start)| {
+                let end = starts.get(index + 1).copied().unwrap_or(source.len());
+                source[start..end].is_ascii()
+            })
+            .collect();
+
+        Self { starts, ascii }
+    }
+
+    fn line_col(&self, input: &str, offset: usize) -> (usize, usize) {
+        let line = self.starts.partition_point(|&start| start <= offset);
+        let start = self.starts[line - 1];
+        let col = if self.ascii[line - 1] {
+            offset - start
+        } else {
+            input[start..offset].chars().count()
+        };
+
+        (line, col + 1)
     }
 }
 
@@ -43,20 +70,36 @@ fn parse_inner(source: &str) -> Result<Program> {
     guard_complexity(source)?;
 
     let mut pairs = ZakParser::parse(Rule::program, source).map_err(|error| {
-        let location = match error.location {
-            pest::error::InputLocation::Pos(offset) => Span::at_offset(source, offset),
-            pest::error::InputLocation::Span((start, end)) => {
-                Span::at_offset(source, start).through(Span::at_offset(source, end))
-            }
+        let (location, offset) = match error.location {
+            pest::error::InputLocation::Pos(offset) => (Span::at_offset(source, offset), offset),
+            pest::error::InputLocation::Span((start, end)) => (
+                Span::at_offset(source, start).through(Span::at_offset(source, end)),
+                start,
+            ),
         };
-        CompilerError::new(ErrorCode::SyntaxError, Some(location), error.to_string())
+        // One line for the repair prompt: pest's Display adds a multi-line
+        // source excerpt, while the span already carries the location.
+        let found = if source[offset..].trim().is_empty() {
+            "Unexpected end of source"
+        } else {
+            "Unexpected input"
+        };
+        CompilerError::new(
+            ErrorCode::SyntaxError,
+            Some(location),
+            format!("{found}; {}.", error.variant.message()),
+        )
     })?;
 
     let program = Span::point(1, 1).next(&mut pairs)?;
     let seq = Span::point(1, 1).next(&mut program.into_inner())?;
 
     Ok(Program {
-        statements: Builder { next_id: 0 }.block(seq)?,
+        statements: Builder {
+            next_id: 0,
+            lines: LineIndex::new(source),
+        }
+        .block(seq)?,
     })
 }
 
@@ -119,9 +162,26 @@ fn guard_complexity(source: &str) -> Result<()> {
 
 struct Builder {
     next_id: u32,
+    lines: LineIndex,
 }
 
 impl Builder {
+    fn span(&self, pair: &P<'_>) -> Span {
+        let range = pair.as_span();
+        let input = range.get_input();
+        let (line, col) = self.lines.line_col(input, range.start());
+        let (end_line, end_col) = self.lines.line_col(input, range.end());
+
+        Span {
+            start: range.start(),
+            end: range.end(),
+            line,
+            col,
+            end_line,
+            end_col,
+        }
+    }
+
     fn id(&mut self) -> NodeId {
         let id = NodeId(self.next_id);
         self.next_id += 1;
@@ -187,7 +247,7 @@ impl Builder {
         BindingName {
             id: self.id(),
             name: pair.as_str().to_owned(),
-            span: span(&pair),
+            span: self.span(&pair),
         }
     }
 
@@ -198,14 +258,14 @@ impl Builder {
         pair.into_inner().map(|pair| self.statement(pair)).collect()
     }
 
-    fn ty(pair: P<'_>) -> Result<Type> {
-        let location = span(&pair);
+    fn ty(&self, pair: P<'_>) -> Result<Type> {
+        let location = self.span(&pair);
         let kind = pair.as_rule();
         let text = pair.as_str();
         let mut children = pair.clone().into_inner();
 
         Ok(match kind {
-            Rule::ty => Self::ty(location.next(&mut children)?)?,
+            Rule::ty => self.ty(location.next(&mut children)?)?,
             Rule::primitive => match text {
                 "I" => Type::Int,
                 "R" => Type::Real,
@@ -219,10 +279,10 @@ impl Builder {
                     ));
                 }
             },
-            Rule::array_type => Type::array(Self::ty(location.next(&mut children)?)?),
+            Rule::array_type => Type::array(self.ty(location.next(&mut children)?)?),
             Rule::map_type => Type::map(
-                Self::ty(location.next(&mut children)?)?,
-                Self::ty(location.next(&mut children)?)?,
+                self.ty(location.next(&mut children)?)?,
+                self.ty(location.next(&mut children)?)?,
             ),
             _ => {
                 return Err(CompilerError::new(
@@ -235,7 +295,7 @@ impl Builder {
     }
 
     fn statement(&mut self, pair: P<'_>) -> Result<Stmt> {
-        let location = span(&pair);
+        let location = self.span(&pair);
         let rule = pair.as_rule();
         if rule == Rule::call {
             let expression = self.expression(pair)?;
@@ -252,7 +312,7 @@ impl Builder {
                 let value_or_type = location.next(&mut children)?;
                 let (declared_type, value) = if value_or_type.as_rule() == Rule::ty {
                     (
-                        Some(Self::ty(value_or_type)?),
+                        Some(self.ty(value_or_type)?),
                         self.expression(location.next(&mut children)?)?,
                     )
                 } else {
@@ -327,12 +387,12 @@ impl Builder {
                         let binding = self.binding(location.next(&mut fields)?);
                         parameters.push(Parameter {
                             binding,
-                            ty: Self::ty(location.next(&mut fields)?)?,
+                            ty: self.ty(location.next(&mut fields)?)?,
                         });
                     }
-                    Self::ty(location.next(&mut children)?)?
+                    self.ty(location.next(&mut children)?)?
                 } else {
-                    Self::ty(parameters_or_type)?
+                    self.ty(parameters_or_type)?
                 };
 
                 StmtKind::Function(Function {
@@ -358,7 +418,7 @@ impl Builder {
     }
 
     fn iteration(&mut self, pair: P<'_>) -> Result<Iteration> {
-        let location = span(&pair);
+        let location = self.span(&pair);
         let mut children = pair.into_inner();
         let start = self.expression(location.next(&mut children)?)?;
         let stop = children.next().map(|p| self.expression(p)).transpose()?;
@@ -381,7 +441,7 @@ impl Builder {
     }
 
     fn expression(&mut self, pair: P<'_>) -> Result<Expr> {
-        let location = span(&pair);
+        let location = self.span(&pair);
         let rule = pair.as_rule();
         let text = pair.as_str();
         let mut children = pair.clone().into_inner();
@@ -437,7 +497,7 @@ impl Builder {
                 ExprKind::Map(entries)
             }
             Rule::cast => ExprKind::Cast(
-                Self::ty(location.next(&mut children)?)?,
+                self.ty(location.next(&mut children)?)?,
                 Box::new(self.expression(location.next(&mut children)?)?),
             ),
             Rule::call => {
@@ -496,7 +556,7 @@ impl Builder {
                     };
 
                     value = self.expr_node(
-                        span(&prefix).through(value.span),
+                        self.span(&prefix).through(value.span),
                         ExprKind::Unary(op, Box::new(value)),
                     )?;
                 }
@@ -505,7 +565,7 @@ impl Builder {
             Rule::post | Rule::target => {
                 let mut value = self.expression(location.next(&mut children)?)?;
                 for suffix in children {
-                    let span = value.span.through(span(&suffix));
+                    let span = value.span.through(self.span(&suffix));
                     let suffix_rule = suffix.as_rule();
                     let mut fields = suffix.into_inner();
                     let kind = if suffix_rule == Rule::index_suffix {
@@ -549,5 +609,32 @@ impl Builder {
         };
 
         self.expr_node(location, kind)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LineIndex;
+
+    #[test]
+    fn line_index_matches_pest_coordinates_at_every_char_boundary() {
+        for input in [
+            "",
+            "x:=1",
+            "x:=1;\nout(x)\n",
+            "a:=\"é✓\";\r\nout(a)\r\n\r\nb:=2",
+            "lone\rcarriage\n\nend",
+            "s:=\"日本\";\nt:=\"ok\"",
+        ] {
+            let lines = LineIndex::new(input);
+            for offset in (0..=input.len()).filter(|&offset| input.is_char_boundary(offset)) {
+                let expected = pest::Position::new(input, offset).unwrap().line_col();
+                assert_eq!(
+                    lines.line_col(input, offset),
+                    expected,
+                    "{input:?} at {offset}"
+                );
+            }
+        }
     }
 }
