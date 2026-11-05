@@ -42,6 +42,11 @@ def upgrade() -> None:
                 server_default="3",
             ),
         )
+
+    # SQLite batch mode recreates the table when defaults are removed. Keep
+    # the temporary defaults during the first copy so existing rows receive
+    # valid values before the final schema removes those defaults.
+    with op.batch_alter_table("benchmark_runs") as batch_op:
         batch_op.alter_column("seed", server_default=None)
         batch_op.alter_column("prompt_version", server_default=None)
         batch_op.alter_column("max_attempts", server_default=None)
