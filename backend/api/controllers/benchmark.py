@@ -37,6 +37,7 @@ PROMPT_VERSION = "1"
 ZAK_SPEC_VERSION = "0.1"
 SEED = 0
 MAX_ATTEMPTS = 3
+DEFAULT_TEMPERATURE = 0.0
 logger = logging.getLogger(__name__)
 
 
@@ -170,12 +171,15 @@ def create_queued_run(
     pair_id: UUID | None = None,
 ) -> BenchmarkRun:
     """Add a queued run and flush it so its ID is available to the caller."""
+    effective_temperature = (
+        temperature if temperature is not None else DEFAULT_TEMPERATURE
+    )
     run = BenchmarkRun(
         user_id=user.id,
         task_id=task_id,
         language=language.value,
         model_name=MODEL_NAME,
-        temperature=temperature,
+        temperature=effective_temperature,
         pair_id=pair_id,
         status=RunStatus.QUEUED.value,
     )
@@ -221,6 +225,16 @@ def execute_run_in_background(
             logger.error("Background run %s no longer exists", run_id)
             return
 
+        effective_temperature = (
+            temperature
+            if temperature is not None
+            else (
+                run.temperature
+                if run.temperature is not None
+                else DEFAULT_TEMPERATURE
+            )
+        )
+        run.temperature = effective_temperature
         run.status = RunStatus.RUNNING.value
         db.commit()
 
@@ -237,7 +251,7 @@ def execute_run_in_background(
             SEED,
             max_attempts=MAX_ATTEMPTS,
             source=source,
-            temperature=temperature,
+            temperature=effective_temperature,
         )
         _persist_run_result(db, run, result)
     except Exception:

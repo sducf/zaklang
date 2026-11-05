@@ -452,6 +452,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.session.expire_all()
         saved_run = self.session.get(BenchmarkRun, run.id)
         self.assertEqual(saved_run.status, "error")
+        self.assertEqual(saved_run.temperature, benchmark.DEFAULT_TEMPERATURE)
         self.assertIsNotNone(saved_run.completed_at)
         self.assertEqual(saved_run.attempts, [])
 
