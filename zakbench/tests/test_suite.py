@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from sandbox import runner
 from zakbench.__main__ import main
@@ -107,6 +107,35 @@ class SuiteCliTest(unittest.TestCase):
             for argv in (['run', '--suite', 'dev', '--lang', 'zak'], ['run', '--task', 'array_sum', '--lang', 'both']):
                 with self.assertRaises(SystemExit):
                     main(argv)
+
+    def test_persist_needs_a_suite_and_a_user_email(self):
+        open_store = Mock()
+        for argv, message in (
+                (['run', '--task', 'array_sum', '--lang', 'zak', '--persist', '--user-email', 'a@b.c'],
+                 '--persist needs --suite'),
+                (['run', '--suite', 'dev', '--lang', 'both', '--persist'], '--persist needs --user-email')):
+            with contextlib.redirect_stderr(io.StringIO()) as stderr, self.assertRaises(SystemExit):
+                main(argv, open_store=open_store)
+            self.assertIn(message, stderr.getvalue())
+        open_store.assert_not_called()
+
+    def test_store_is_opened_only_with_persist(self):
+        open_store = Mock()
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(suite, 'run_suite') as run_suite, \
+                patch('zakbench.__main__.run_suite', run_suite), \
+                patch('zakbench.__main__._print_summary'), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(main(['run', '--suite', 'dev', '--lang', 'both'], results_dir=tmp,
+                                  open_store=open_store), 0)
+            open_store.assert_not_called()
+            self.assertIsNone(run_suite.call_args.kwargs['store'])
+
+            self.assertEqual(main(['run', '--suite', 'dev', '--lang', 'both', '--persist', '--user-email',
+                                   'a@b.c'], results_dir=tmp, open_store=open_store), 0)
+            open_store.assert_called_once_with('a@b.c')
+            self.assertIs(run_suite.call_args.kwargs['store'], open_store.return_value)
+            open_store.return_value.db.close.assert_called_once_with()
 
     def test_summarize_reports_an_empty_folder(self):
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(io.StringIO()) as stderr:

@@ -1,6 +1,7 @@
 """Public request and response models for benchmark API endpoints."""
 
 from datetime import datetime
+from typing import Any
 from enum import Enum
 from uuid import UUID
 
@@ -146,3 +147,23 @@ class RunListItem(BaseModel):
     max_attempts: int
     status: RunStatus
     attempts_used: int = Field(ge=0)
+
+
+class SuiteResponse(BaseModel):
+    id: int
+    cli_suite_run_id: str
+    suite: str
+    model_name: str
+    seed: int
+    prompt_version: str
+    spec_version: str | None
+    max_attempts: int
+    status: str
+    created_at: datetime
+    finished_at: datetime | None
+
+
+class SuiteDetailResponse(SuiteResponse):
+    # Output of zakbench/evaluation/summary.py summarize(). None until the
+    # suite has completed, because a partial suite has incomplete pairs.
+    summary: dict[str, Any] | None

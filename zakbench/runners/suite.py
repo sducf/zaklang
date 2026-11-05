@@ -40,9 +40,11 @@ def suite_tasks(suite):
 
 
 def run_suite(suite, model_id, seed, prompt_version, spec_version, max_attempts=3, task_ids=None,
-              results_dir=run.RESULTS):
+              results_dir=run.RESULTS, store=None):
     """Run every task in the suite once in Zak and once in Python, then write the summary.
 
+    store, when given, also writes the suite and each run to the database (--persist).
+    It needs start(), save(record), and finish(status), as in backend/api/controllers/suites.py.
     Raises ValueError for an unknown suite or task. A run that crashes is stored as an error run.
     """
     available = suite_tasks(suite)
@@ -55,20 +57,32 @@ def run_suite(suite, model_id, seed, prompt_version, spec_version, max_attempts=
     suite_run_id = f'{suite}-{stamp}'
     folder = Path(results_dir) / suite_run_id
     folder.mkdir(parents=True)
+    if store:
+        store.start(suite, suite_run_id, model_id, seed, prompt_version, spec_version, max_attempts)
 
     runs = []
-    for task_id in task_ids:
-        category = load_task(task_id)['category']
-        for language in LANGUAGES:
-            record = _run_one(task_id, language, model_id, spec_version, prompt_version, seed, max_attempts)
-            record.update(suite=suite, suite_run_id=suite_run_id, pair_id=f'{suite_run_id}:{task_id}',
-                          category=category)
-            # Write each run at once, so a stopped suite keeps the runs that finished.
-            (folder / f'{task_id}-{language}.json').write_text(
-                json.dumps(record, indent=2) + '\n', encoding='utf-8')
-            runs.append(record)
+    try:
+        for task_id in task_ids:
+            category = load_task(task_id)['category']
+            for language in LANGUAGES:
+                record = _run_one(task_id, language, model_id, spec_version, prompt_version, seed, max_attempts)
+                record.update(suite=suite, suite_run_id=suite_run_id, pair_id=f'{suite_run_id}:{task_id}',
+                              category=category)
+                # Write each run at once, so a stopped suite keeps the runs that finished.
+                (folder / f'{task_id}-{language}.json').write_text(
+                    json.dumps(record, indent=2) + '\n', encoding='utf-8')
+                if store:
+                    store.save(record)
+                runs.append(record)
+    except BaseException:
+        if store:
+            store.finish('failed')
+        raise
 
-    return SuiteResult(suite_run_id, folder, runs, write_summary(folder, runs))
+    result = SuiteResult(suite_run_id, folder, runs, write_summary(folder, runs))
+    if store:
+        store.finish('completed')
+    return result
 
 
 def _run_one(task_id, language, model_id, spec_version, prompt_version, seed, max_attempts):
