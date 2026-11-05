@@ -122,7 +122,7 @@ request is unauthenticated. The configured model name is currently
 `Llama 3.1 8B Instruct`.
 
 Runs persist the effective seed, prompt version, Zak spec version, and maximum
-attempt count used by the backend. `PROMPT_VERSION` and `ZAK_SPEC_VERSION` are
+attempt count and token limit used by the backend. `PROMPT_VERSION` and `ZAK_SPEC_VERSION` are
 backend-controlled constants and must be bumped in both the backend and
 ZakBench documentation/source when their respective templates or language
 specification changes.

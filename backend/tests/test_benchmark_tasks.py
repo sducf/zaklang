@@ -146,6 +146,10 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual(run.status, "queued")
         self.assertEqual(run.model_name, "Llama 3.1 8B Instruct")
         self.assertEqual(run.language, "zak")
+        self.assertEqual(run.max_tokens, benchmark.MAX_TOKENS)
+        self.assertEqual(run.seed, benchmark.SEED)
+        self.assertEqual(run.prompt_version, benchmark.PROMPT_VERSION)
+        self.assertEqual(run.max_attempts, benchmark.MAX_ATTEMPTS)
 
     def test_create_queued_pair_shares_id_and_temperature(self):
         pair_id, runs = benchmark.create_queued_pair(
@@ -160,6 +164,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual({run.pair_id for run in runs}, {pair_id})
         self.assertEqual({run.temperature for run in runs}, {0.4})
         self.assertEqual({run.model_name for run in runs}, {benchmark.MODEL_NAME})
+        self.assertEqual({run.max_tokens for run in runs}, {benchmark.MAX_TOKENS})
         self.assertEqual({run.status for run in runs}, {"queued"})
 
     def test_run_response_maps_attempt_evaluation_and_totals(self):
@@ -264,7 +269,13 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual(args[0], response.id)
         self.assertEqual(
             args[1:],
-            ("array_sum", benchmark.Language.PYTHON, payload.source, 0.7, None),
+            (
+                "array_sum",
+                benchmark.Language.PYTHON,
+                payload.source,
+                0.7,
+                None,
+            ),
         )
 
     def test_run_reads_are_scoped_to_the_current_user(self):
@@ -453,6 +464,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         saved_run = self.session.get(BenchmarkRun, run.id)
         self.assertEqual(saved_run.status, "error")
         self.assertEqual(saved_run.temperature, benchmark.DEFAULT_TEMPERATURE)
+        self.assertEqual(saved_run.max_tokens, benchmark.MAX_TOKENS)
         self.assertIsNotNone(saved_run.completed_at)
         self.assertEqual(saved_run.attempts, [])
 

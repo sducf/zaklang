@@ -37,6 +37,7 @@ PROMPT_VERSION = "1"
 ZAK_SPEC_VERSION = "0.1"
 SEED = 0
 MAX_ATTEMPTS = 3
+MAX_TOKENS = 1024
 DEFAULT_TEMPERATURE = 0.0
 logger = logging.getLogger(__name__)
 
@@ -187,6 +188,7 @@ def create_queued_run(
         spec_version=spec_version,
         prompt_version=PROMPT_VERSION,
         max_attempts=MAX_ATTEMPTS,
+        max_tokens=MAX_TOKENS,
         pair_id=pair_id,
         status=RunStatus.QUEUED.value,
     )
@@ -248,7 +250,9 @@ def execute_run_in_background(
         run.seed = effective_seed
         effective_prompt_version = run.prompt_version or PROMPT_VERSION
         effective_max_attempts = run.max_attempts or MAX_ATTEMPTS
+        effective_max_tokens = run.max_tokens or MAX_TOKENS
         run.temperature = effective_temperature
+        run.max_tokens = effective_max_tokens
         run.status = RunStatus.RUNNING.value
         db.commit()
 
@@ -264,6 +268,7 @@ def execute_run_in_background(
             effective_prompt_version,
             effective_seed,
             max_attempts=effective_max_attempts,
+            max_tokens=effective_max_tokens,
             source=source,
             temperature=effective_temperature,
         )
