@@ -21,6 +21,10 @@ Table benchmark_runs {
   model_name varchar(255) [not null]
 
   temperature float
+  seed integer [not null, note: "Request seed"]
+  spec_version varchar(50)
+  prompt_version varchar(50) [not null]
+  max_attempts integer [not null]
   max_tokens integer
 
   status varchar(50) [not null, note: "queued, running, passed, failed, error, or timeout"]

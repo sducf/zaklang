@@ -110,6 +110,29 @@ class BenchmarkRun(Base):
         nullable=True,
     )
 
+    seed: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    spec_version: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    prompt_version: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="1",
+    )
+
+    max_attempts: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=3,
+    )
+
     max_tokens: Mapped[int | None] = mapped_column(
         Integer,
         nullable=True,
