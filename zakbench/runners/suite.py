@@ -74,14 +74,14 @@ def run_suite(suite, model_id, seed, prompt_version, spec_version, max_attempts=
                 if store:
                     store.save(record)
                 runs.append(record)
+        result = SuiteResult(suite_run_id, folder, runs, write_summary(folder, runs))
+        if store:
+            store.finish('completed')
     except BaseException:
         if store:
             store.finish('failed')
         raise
 
-    result = SuiteResult(suite_run_id, folder, runs, write_summary(folder, runs))
-    if store:
-        store.finish('completed')
     return result
 
 

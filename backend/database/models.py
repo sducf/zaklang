@@ -103,6 +103,13 @@ class BenchmarkRun(Base):
         nullable=False,
     )
 
+    # The task's category when a CLI suite stored this run, so a stored
+    # suite summary does not depend on the current task.json.
+    category: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
     # Expected values are currently "python" or "zak". -H
     language: Mapped[str] = mapped_column(
         String(20),

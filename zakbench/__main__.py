@@ -21,12 +21,17 @@ def open_store(user_email):
     backend = Path(__file__).resolve().parents[1] / 'backend'
     if str(backend) not in sys.path:
         sys.path.insert(0, str(backend))
+    from sqlalchemy.exc import SQLAlchemyError
     from database.db import SessionLocal
     from api.controllers.suites import SuiteStore
 
     db = SessionLocal()
     try:
         return SuiteStore(db, user_email)
+    except SQLAlchemyError as error:
+        db.close()
+        # Only the class name: the full message can contain the DATABASE_URL and its password.
+        raise RuntimeError(f'could not reach the database ({type(error).__name__})') from None
     except Exception:
         db.close()
         raise

@@ -161,7 +161,9 @@ class PersistedSuiteTests(SuiteDatabaseTestCase):
         for task_id in TASKS:
             cases = json.loads((suite_runner.TASKS / task_id / 'hidden_tests.json').read_text(encoding='utf-8'))
             for case in cases:
-                self.assertNotIn(json.dumps(case['inputs']), body, task_id)
+                # The API writes compact JSON, so check that form as well as the default one.
+                for separators in ((', ', ': '), (',', ':')):
+                    self.assertNotIn(json.dumps(case['inputs'], separators=separators), body, task_id)
 
     def test_list_suites_needs_login_and_lists_newest_first(self):
         self.run_suite()
@@ -194,6 +196,30 @@ class PersistedSuiteTests(SuiteDatabaseTestCase):
         self.log_in()
         self.assertIsNone(self.client.get(f'/suites/{suite.id}').json()['summary'])
 
+    def test_runs_store_the_category_the_cli_recorded(self):
+        self.run_suite()
+
+        stored = {run.task_id: run.category for run in self.db.query(BenchmarkRun)}
+        self.assertEqual(stored, {task_id: suite_runner.load_task(task_id)['category'] for task_id in TASKS})
+
+    def test_summary_does_not_reread_task_files(self):
+        self.run_suite()
+        suite_id = self.db.query(SuiteRun).one().id
+        self.log_in()
+
+        with patch('api.controllers.benchmark.get_task_controller', side_effect=AssertionError('read task.json')):
+            response = self.client.get(f'/suites/{suite_id}')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('by_category', response.json()['summary'])
+
+    def test_failed_summary_write_marks_the_suite_failed(self):
+        with patch.object(suite_runner, 'write_summary', side_effect=OSError('disk full')), \
+                self.assertRaises(OSError):
+            self.run_suite()
+
+        self.assertEqual(self.db.query(SuiteRun).one().status, 'failed')
+
     def test_unknown_email_is_rejected_before_anything_is_written(self):
         with self.assertRaisesRegex(ValueError, '^no user has the email nobody@example.com$'):
             SuiteStore(self.db, 'nobody@example.com')
@@ -203,8 +229,8 @@ class PersistedSuiteTests(SuiteDatabaseTestCase):
 class PersistCliTests(SuiteDatabaseTestCase):
     """Run the real CLI and its real open_store() against the test database."""
 
-    def cli(self, *extra):
-        with patch('database.db.SessionLocal', self.session_factory), \
+    def cli(self, *extra, session_factory=None):
+        with patch('database.db.SessionLocal', session_factory or self.session_factory), \
                 patch.object(run, 'run_single', side_effect=fake_run_single) as run_single, \
                 contextlib.redirect_stdout(io.StringIO()), \
                 contextlib.redirect_stderr(io.StringIO()) as stderr:
@@ -237,6 +263,16 @@ class PersistCliTests(SuiteDatabaseTestCase):
         self.assertEqual((code, calls), (1, 0))
         self.assertEqual(stderr, 'error: no user has the email nobody@example.com\n')
         self.assertEqual(self.counts(), (0, 0, 0))
+
+    def test_persist_with_an_unreachable_database_stops_without_printing_the_url(self):
+        missing = Path(self.results.name) / 'missing' / 'secret-password.db'
+        unreachable = sessionmaker(bind=create_engine(f'sqlite:///{missing}'))
+
+        code, calls, stderr = self.cli('--persist', '--user-email', 'suite-user@example.com',
+                                       session_factory=unreachable)
+
+        self.assertEqual((code, calls), (1, 0))
+        self.assertEqual(stderr, 'error: could not reach the database (OperationalError)\n')
 
 
 if __name__ == '__main__':

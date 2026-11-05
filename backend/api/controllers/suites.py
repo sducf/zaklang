@@ -10,7 +10,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from api.controllers.auth import _normalize_email
-from api.controllers.benchmark import REPOSITORY_ROOT, _persist_run_result, get_task_controller
+from api.controllers.benchmark import REPOSITORY_ROOT, _persist_run_result
 from api.schemas.benchmark import RunStatus, SuiteDetailResponse, SuiteResponse
 from database.models import BenchmarkRun, SuiteRun, User
 
@@ -39,7 +39,8 @@ class SuiteStore:
         pair_id = self.pair_ids.setdefault(record['task_id'], uuid4())
         run = BenchmarkRun(
             user_id=self.user.id, suite_run_id=self.suite_run.id, pair_id=pair_id,
-            task_id=record['task_id'], language=record['language'], model_name=record['model_id'],
+            task_id=record['task_id'], category=record['category'], language=record['language'],
+            model_name=record['model_id'],
             temperature=record['temperature'], seed=record['seed'], spec_version=record['spec_version'],
             prompt_version=record['prompt_version'], max_attempts=record['max_attempts'],
             max_tokens=record['max_tokens'], status=RunStatus.RUNNING.value)
@@ -92,8 +93,8 @@ def _run_record(suite: SuiteRun, run: BenchmarkRun) -> dict[str, Any]:
         'suite': suite.suite, 'suite_run_id': suite.cli_suite_run_id, 'model_id': suite.model_name,
         'spec_version': suite.spec_version, 'prompt_version': suite.prompt_version, 'seed': suite.seed,
         'temperature': run.temperature, 'max_tokens': run.max_tokens, 'max_attempts': suite.max_attempts,
-        'task_id': run.task_id, 'language': run.language,
-        'category': get_task_controller(run.task_id).category,
+        # The category stored with the run, so a later task.json edit cannot regroup a stored suite.
+        'task_id': run.task_id, 'language': run.language, 'category': run.category,
         # A run with no attempts is a run that crashed the harness.
         'exec_outcome': outcomes[-1] if attempts else 'error',
         'passed': run.status == RunStatus.PASSED.value,

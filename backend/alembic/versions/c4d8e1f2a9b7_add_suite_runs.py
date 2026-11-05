@@ -39,6 +39,7 @@ def upgrade() -> None:
     )
     with op.batch_alter_table("benchmark_runs") as batch_op:
         batch_op.add_column(sa.Column("suite_run_id", sa.Integer(), nullable=True))
+        batch_op.add_column(sa.Column("category", sa.String(length=50), nullable=True))
         batch_op.create_index("ix_benchmark_runs_suite_run_id", ["suite_run_id"], unique=False)
         batch_op.create_foreign_key(
             "fk_benchmark_runs_suite_run_id_suite_runs", "suite_runs", ["suite_run_id"], ["id"])
@@ -49,5 +50,6 @@ def downgrade() -> None:
     with op.batch_alter_table("benchmark_runs") as batch_op:
         batch_op.drop_constraint("fk_benchmark_runs_suite_run_id_suite_runs", type_="foreignkey")
         batch_op.drop_index("ix_benchmark_runs_suite_run_id")
+        batch_op.drop_column("category")
         batch_op.drop_column("suite_run_id")
     op.drop_table("suite_runs")
