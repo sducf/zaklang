@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest.mock import patch
+from uuid import uuid4
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -146,6 +147,21 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual(run.model_name, "Llama 3.1 8B Instruct")
         self.assertEqual(run.language, "zak")
 
+    def test_create_queued_pair_shares_id_and_temperature(self):
+        pair_id, runs = benchmark.create_queued_pair(
+            self.session,
+            self.user,
+            "array_sum",
+            temperature=0.4,
+        )
+
+        self.assertEqual(len(runs), 2)
+        self.assertEqual({run.language for run in runs}, {"zak", "python"})
+        self.assertEqual({run.pair_id for run in runs}, {pair_id})
+        self.assertEqual({run.temperature for run in runs}, {0.4})
+        self.assertEqual({run.model_name for run in runs}, {benchmark.MODEL_NAME})
+        self.assertEqual({run.status for run in runs}, {"queued"})
+
     def test_run_response_maps_attempt_evaluation_and_totals(self):
         run = benchmark.create_queued_run(
             self.session,
@@ -268,6 +284,26 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual(owned.id, owned_run.id)
         with self.assertRaises(HTTPException) as raised:
             benchmark.get_run_for_user(self.session, self.user, other_run.id)
+        self.assertEqual(raised.exception.status_code, 404)
+
+    def test_pair_reads_are_owner_scoped_and_include_both_languages(self):
+        pair_id, runs = benchmark.create_queued_pair(
+            self.session,
+            self.user,
+            "array_sum",
+        )
+        self.session.commit()
+
+        pair = benchmark.get_pair_for_user(self.session, self.user, pair_id)
+
+        self.assertEqual([run.id for run in pair], [run.id for run in runs])
+        self.assertEqual({run.language for run in pair}, {"zak", "python"})
+        self.assertEqual({run.pair_id for run in pair}, {pair_id})
+        with self.assertRaises(HTTPException) as raised:
+            benchmark.get_pair_for_user(self.session, self.other_user, pair_id)
+        self.assertEqual(raised.exception.status_code, 404)
+        with self.assertRaises(HTTPException) as raised:
+            benchmark.get_pair_for_user(self.session, self.user, uuid4())
         self.assertEqual(raised.exception.status_code, 404)
 
     def test_background_worker_persists_attempts_and_terminal_status(self):
@@ -509,16 +545,89 @@ class BenchmarkHttpAuthTests(unittest.TestCase):
             ("get", "/runs"),
             ("get", "/runs/1"),
             ("post", "/runs"),
+            ("post", "/runs/pair"),
         ):
             with self.subTest(method=method, path=path):
                 if method == "post":
-                    response = self.client.post(
-                        path,
-                        json={"task_id": "array_sum", "language": "python"},
+                    payload = (
+                        {"task_id": "array_sum", "temperature": 0.4}
+                        if path == "/runs/pair"
+                        else {"task_id": "array_sum", "language": "python"}
                     )
+                    response = self.client.post(path, json=payload)
                 else:
                     response = self.client.get(path)
                 self.assertEqual(response.status_code, 401)
+
+    def test_authenticated_pair_creation_returns_two_queued_runs(self):
+        class BackgroundTasks:
+            def __init__(self):
+                self.tasks = []
+
+            def add_task(self, function, *args):
+                self.tasks.append((function, args))
+
+        background_tasks = BackgroundTasks()
+        app.dependency_overrides[get_current_user_controller] = (
+            lambda: self.user
+        )
+
+        response = benchmark_routes.create_run_pair(
+            benchmark_routes.PairCreateRequest(
+                task_id="array_sum",
+                temperature=0.4,
+            ),
+            background_tasks,
+            self.user,
+            self.session,
+        )
+
+        self.assertEqual(len(response.run_ids), 2)
+        runs = [
+            self.session.get(BenchmarkRun, run_id)
+            for run_id in response.run_ids
+        ]
+        self.assertEqual({run.language for run in runs}, {"zak", "python"})
+        self.assertEqual({run.pair_id for run in runs}, {response.pair_id})
+        self.assertEqual({run.temperature for run in runs}, {0.4})
+        self.assertEqual({run.status for run in runs}, {"queued"})
+        self.assertEqual(len(background_tasks.tasks), 2)
+        self.assertEqual(
+            {args[2] for _, args in background_tasks.tasks},
+            {benchmark.Language.ZAK, benchmark.Language.PYTHON},
+        )
+
+    def test_pair_detail_endpoint_is_owner_scoped(self):
+        pair_id, runs = benchmark.create_queued_pair(
+            self.session,
+            self.user,
+            "array_sum",
+        )
+        self.session.commit()
+        app.dependency_overrides[get_current_user_controller] = (
+            lambda: self.user
+        )
+
+        response = self.client.get(f"/pairs/{pair_id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            {item["id"] for item in response.json()},
+            {run.id for run in runs},
+        )
+        self.assertEqual(
+            {item["pair_id"] for item in response.json()},
+            {str(pair_id)},
+        )
+
+        other_user = User(email="pair-owner@example.com", password_hash="hash")
+        self.session.add(other_user)
+        self.session.commit()
+        app.dependency_overrides[get_current_user_controller] = (
+            lambda: other_user
+        )
+        response = self.client.get(f"/pairs/{pair_id}")
+        self.assertEqual(response.status_code, 404)
 
     def test_authenticated_detail_hides_another_users_run(self):
         other_user = User(email="other-http@example.com", password_hash="hash")

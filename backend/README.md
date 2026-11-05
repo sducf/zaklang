@@ -105,9 +105,15 @@ returned by these endpoints.
 
 - `POST /runs` creates a `queued` run and schedules the single-run worker with
   FastAPI `BackgroundTasks`.
+- `POST /runs/pair` creates one queued Zak run and one queued Python run for
+  the same task, linked by a shared `pair_id`, and schedules both workers.
+  The request accepts `task_id` and an optional `temperature`; the response
+  contains the `pair_id` and the two run IDs.
 - `GET /runs` returns only runs owned by the authenticated caller.
 - `GET /runs/{id}` returns the caller's aggregate run or `404` for another
   user's run.
+- `GET /pairs/{pair_id}` returns both linked runs in `RunResponse` shape and
+  returns `404` when the pair does not belong to the authenticated caller.
 
 All run endpoints require an access bearer token and return `401` when the
 request is unauthenticated. The configured model name is currently
@@ -125,6 +131,7 @@ them and are not summed at run level:
 ```json
 {
   "id": 42,
+  "pair_id": null,
   "task_id": "array_sum",
   "language": "zak",
   "model_name": "Llama 3.1 8B Instruct",
