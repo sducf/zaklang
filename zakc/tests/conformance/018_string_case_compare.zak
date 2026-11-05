@@ -1,0 +1,1 @@
+a:="Zak";b:=up(a);c:=lo(a);out(b);out(c);?b>c{out("upper")}:{out("lower")}out(a+"-"+b+"-"+c)

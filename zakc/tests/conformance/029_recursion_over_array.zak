@@ -1,0 +1,1 @@
+@total(a:[I],i:I)I{?i>=#a{^0}^a[i]+total(a,i+1)}@largest(a:[I],i:I)I{?i==#a-1{^a[i]}rest:=largest(a,i+1);^a[i]>rest?a[i]:rest}out(total([4,-2,9,1],0));out(largest([4,-2,9,1],0))

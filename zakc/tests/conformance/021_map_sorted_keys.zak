@@ -1,0 +1,1 @@
+m:{S:I}={"pear":3,"apple":1,"fig":2};ks:=srt(keys(m));out(jn(ks,","));total:=0;~k:ks{total+=m[k]}out(total)

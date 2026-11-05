@@ -1,0 +1,1 @@
+@is_even(n:I)B{?n==0{^T}^is_odd(n-1)}@is_odd(n:I)B{?n==0{^F}^is_even(n-1)}c:=0;~i:0..10{?is_even(i){c+=1}}out(c);?is_odd(7){out("odd")}

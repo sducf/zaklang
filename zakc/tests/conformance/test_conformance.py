@@ -1,4 +1,4 @@
-"""SD-35 compile/transpile/execute checks using the real Docker sandbox.
+"""SD-35/SD-56 compile/transpile/execute checks using the real Docker sandbox.
 
 Docker and its prebuilt sandbox image are required. Missing dependencies fail
 these tests; there are no skips and no local execution fallback. CI has no
@@ -21,12 +21,7 @@ pytestmark = pytest.mark.docker
 
 ROOT = Path(__file__).resolve().parents[3]
 CORPUS = Path(__file__).resolve().parent
-PROGRAM_NAMES = (
-    "001_variables", "002_integer_arithmetic", "003_float_arithmetic",
-    "004_boolean_logic", "005_conditionals", "006_nested_conditionals",
-    "007_while_loop", "008_range_loop", "009_array_iteration", "010_functions",
-    "011_recursion", "012_arrays", "013_strings", "014_maps", "015_break_continue",
-)
+PROGRAM_NAMES = tuple(sorted(path.stem for path in CORPUS.glob("*.zak")))
 SAMPLE_TASKS = ("array_sum", "palindrome", "frequency_count")
 
 
@@ -36,6 +31,11 @@ def python_source(path):
     ast.parse(source, feature_version=(3, 12))
     builtins.compile(source, str(path.with_suffix(".py")), "exec", dont_inherit=True)
     return source
+
+
+def test_corpus_has_forty_paired_programs():
+    assert len(PROGRAM_NAMES) == 40
+    assert all((CORPUS / f"{name}.expected").is_file() for name in PROGRAM_NAMES)
 
 
 @pytest.mark.parametrize("name", PROGRAM_NAMES)

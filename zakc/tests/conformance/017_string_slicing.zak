@@ -1,0 +1,1 @@
+w:="conformance";out(w[:4]);out(w[4:]);out(w[2:6]);out(#w[1:]);out(w[#w-1])

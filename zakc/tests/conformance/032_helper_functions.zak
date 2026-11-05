@@ -1,0 +1,1 @@
+@sq(x:I)I{^x*x}@sum_sq(a:[I])I{t:=0;~x:a{t+=sq(x)}^t}@mean_sq(a:[I])R{^R(sum_sq(a))/R(#a)}out(sum_sq([1,2,3]));out(S(mean_sq([1,2,3,4])))
