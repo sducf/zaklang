@@ -101,6 +101,19 @@ authenticated run creation and user-scoped run history.
 Task endpoints read only `task.json`; `hidden_tests.json` is never opened or
 returned by these endpoints.
 
+### Authenticated suite endpoints
+
+Suite runs come from the ZakBench CLI with `--persist` (see `zakbench/README.md`).
+Suites are shared benchmark results, so any authenticated user can read every suite.
+
+- `GET /suites` lists suite runs, newest first: id, CLI suite run id, suite,
+  model, seed, prompt and spec versions, max attempts, status, and timestamps.
+- `GET /suites/{id}` returns the same fields plus `summary`, the output of
+  `summarize()` in `zakbench/evaluation/summary.py`. The summary is computed from
+  the stored runs and attempts. It is `null` until the suite status is
+  `completed`. The crash text of an `error` run stays in the CLI's run JSON, so
+  `errors[].error` is `null` here. Returns `404` for an unknown id.
+
 ### Authenticated run endpoints
 
 - `POST /runs` creates a `queued` run and schedules the single-run worker with
@@ -120,7 +133,7 @@ returned by these endpoints.
 - `GET /pairs/{pair_id}` returns both linked runs in `RunResponse` shape and
   returns `404` when the pair does not belong to the authenticated caller.
 
-All run endpoints require an access bearer token and return `401` when the
+All run and suite endpoints require an access bearer token and return `401` when the
 request is unauthenticated. The configured model name is currently
 `Llama 3.1 8B Instruct`.
 
