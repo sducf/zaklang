@@ -1,0 +1,12 @@
+.git
+**/.env
+**/.env.*
+**/.venv
+**/venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/node_modules
+zakbench/results
+*.pem
+*.key
