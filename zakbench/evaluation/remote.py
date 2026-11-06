@@ -46,7 +46,7 @@ def evaluate_remote(
                 "language": language,
                 "timeout_s": timeout_s,
             },
-            timeout=timeout_s + 30,
+            timeout=timeout_s + 100,
             follow_redirects=False,
             trust_env=False,
         )
