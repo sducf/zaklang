@@ -1,0 +1,1 @@
+count:=0;~i:0..4{?i==2{>}~j:0..4{?j==i{>}count+=1}}out(count)

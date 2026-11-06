@@ -1,0 +1,1 @@
+found:=-1;~i:0..5{~j:0..5{?i*j==6{found=i*10+j;!}}?found>=0{!}}out(found)

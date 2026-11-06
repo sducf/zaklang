@@ -1,0 +1,1 @@
+m:{S:I}={"x":1};m["y"]=2;m["x"]+=10;?"z"@m{out("no")}:{out("no z")}?"y"@m{out(m["y"])}out(m["x"]);out(#m)

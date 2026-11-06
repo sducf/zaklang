@@ -97,7 +97,7 @@ fn all_existing_programs_and_references_compile_to_real_python_ast() {
             count += 1;
         }
     }
-    assert_eq!(count, 15);
+    assert_eq!(count, 40);
     let mut references = 0;
     for entry in std::fs::read_dir(root.join("zakbench/tasks")).unwrap() {
         let path = entry.unwrap().path().join("reference.zak");

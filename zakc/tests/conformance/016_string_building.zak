@@ -1,0 +1,1 @@
+s:="";~i:0..5{s=s+S(i)}out(s);t:="";~c:"abc"{t=c+t}out(t)

@@ -1,0 +1,1 @@
+parts:=spl("a,b,,c",",");out(#parts);out(jn(parts,"|"));out(jn(rev(parts),""))
