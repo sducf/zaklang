@@ -1,0 +1,1 @@
+a:=[5,-3,8,0];s:=srt(a);p:[S]=[];~x:s{p<<S(x)}out(jn(p," "));q:[S]=[];~y:rev(s){q<<S(y)}out(jn(q," "));out(min(a[0],a[1]));out(max(s[0],s[3]));out(abs(a[1]));out(a[0])

@@ -2,6 +2,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 use zakc::ast::*;
 use zakc::parser::parse;
 
@@ -20,10 +21,10 @@ fn paths_with_extension(folder: &Path, extension: &str) -> Vec<PathBuf> {
 }
 
 #[test]
-fn fifteen_corpus_programs_have_matching_newline_terminated_outputs_and_parse() {
+fn forty_corpus_programs_have_matching_newline_terminated_outputs_and_parse() {
     let programs = paths_with_extension(&corpus(), "zak");
     let outputs = paths_with_extension(&corpus(), "expected");
-    assert_eq!(programs.len(), 15);
+    assert_eq!(programs.len(), 40);
     let stems = |paths: &[PathBuf]| {
         paths
             .iter()
@@ -334,5 +335,30 @@ fn all_benchmark_references_match_task_signatures() {
             .map(|parameter| parameter.binding.name.as_str())
             .collect();
         assert_eq!(actual, expected, "{}", reference.display());
+    }
+}
+
+/// PRD F2: every conformance program parses and passes semantic checks in
+/// under 50 ms. The best of three runs is used so a single scheduler hiccup on
+/// a shared CI machine does not fail the budget; debug builds stay well below it.
+#[test]
+fn every_corpus_program_checks_within_50_ms() {
+    let budget = Duration::from_millis(50);
+    for path in paths_with_extension(&corpus(), "zak") {
+        let source = fs::read_to_string(&path).unwrap();
+        let fastest = (0..3)
+            .map(|_| {
+                let started = Instant::now();
+                zakc::zak_check(&source)
+                    .unwrap_or_else(|errors| panic!("{}: {errors:?}", path.display()));
+                started.elapsed()
+            })
+            .min()
+            .unwrap();
+        assert!(
+            fastest < budget,
+            "{}: parse + semantic check took {fastest:?}, budget {budget:?}",
+            path.display()
+        );
     }
 }

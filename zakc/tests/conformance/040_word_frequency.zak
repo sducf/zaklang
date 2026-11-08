@@ -1,0 +1,1 @@
+@freq(text:S){S:I}{m:{S:I}={};~w:spl(lo(text)," "){?w@m{m[w]+=1}:{m[w]=1}}^m}f:=freq("The cat the Dog the cat");~k:srt(keys(f)){out(k+"="+S(f[k]))}

@@ -1,0 +1,1 @@
+m:=[[1,2],[3,4],[5,6]];t:[[I]]=[];~j:0..2{row:[I]=[];~i:0..3{row<<m[i][j]}t<<row}~r:t{line:="";~x:r{?#line>0{line+=" "}line+=S(x)}out(line)}

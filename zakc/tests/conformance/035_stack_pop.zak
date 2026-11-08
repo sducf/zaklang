@@ -1,0 +1,1 @@
+st:[I]=[];~i:1..5{st<<i*10}t:=0;~#st>2{t+=pop(st)}out(t);out(#st);out(st[1])

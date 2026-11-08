@@ -1,0 +1,1 @@
+@first_pair(a:[I],t:I)I{~i:0..#a{~j:i+1..#a{?a[i]+a[j]==t{^i*100+j}}}^-1}out(first_pair([3,8,1,6],7));out(first_pair([1,2],10))

@@ -1,0 +1,1 @@
+m:{I:S}={1:"a",2:"b",3:"c"};del(m,2);out(#m);?2@m{out("still")}:{out("gone")}out(m[1]+m[3])

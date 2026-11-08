@@ -1,0 +1,1 @@
+a:R=1.5;b:=2.25;out(a+b);out(b-a);out(b/1.5);c:=R(7)/2.0;out(c);out(I(c));out(S(I("42")+1))

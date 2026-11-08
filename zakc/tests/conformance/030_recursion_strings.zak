@@ -1,0 +1,1 @@
+@reverse(s:S)S{?#s<=1{^s}^reverse(s[1:])+s[0]}@is_pal(s:S)B{^s==reverse(s)}out(reverse("stressed"));?is_pal("racecar"){out("yes")}:{out("no")}?is_pal("zak"){out("yes")}:{out("no")}
