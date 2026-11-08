@@ -168,7 +168,7 @@ prompt.
 
 ### check_references.py
 
-Run from the repository root, with `compiler/requirements.txt` installed:
+Run from the repository root, with the `zakc` extension installed (`pip install ./zakc`):
 
 ```sh
 python3 zakbench/tasks/check_references.py
@@ -179,9 +179,9 @@ For every task folder it checks that both JSON files parse, `task.json` has
 every field and an `id` matching the folder, `hidden_tests.json` has 5 to 12
 cases whose `inputs` match the task's arity, and both `reference.py` and
 `reference.zak` exist. It runs `reference.py` as is, and compiles and
-transpiles `reference.zak` to Python first. Each runs in a fresh, isolated,
+transpiles `reference.zak` to Python first with `zakc.zak_transpile`. Each runs in a fresh, isolated,
 time-limited Python subprocess that compares each result to `expected` by
-value. A Zak compile or transpile failure prints the compiler error as
+value. A Zak compile failure prints the first compiler error as
 `line:col: CODE: message`.
 
 It prints one `PASS` or `FAIL` line per task with the passing case counts

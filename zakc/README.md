@@ -1,9 +1,11 @@
 # zakc — Rust compiler
 
-A native Rust Zak compiler alongside the existing Python compiler. Package,
-library, and binary are named `zakc`. The compiler implementation is native
-Rust. Optional Python bindings are enabled with `--features python`; normal
-Cargo builds, tests, and examples do not depend on Python or libpython.
+The Zak compiler, written in Rust. It replaced the original Python (Lark)
+compiler, which was removed after the measurements in
+[the benchmark report](../docs/benchmarks/compiler-comparison/REPORT.md).
+Package, library, and binary are named `zakc`. Python bindings are enabled
+with `--features python` and are what the backend, sandbox, and ZakBench use;
+normal Cargo builds, tests, and examples do not depend on Python or libpython.
 
 Read [ANALYSIS.md](ANALYSIS.md) for the migration assessment and tradeoffs.
 
@@ -53,8 +55,21 @@ cannot be concatenated without reassigning their IDs.
 The Python module exports `zak_check(source)` and `zak_transpile(source)`.
 They return `CheckedProgram` and `TranspiledProgram` objects respectively;
 the latter exposes generated Python through its read-only `source` property.
-Invalid programs raise `ValueError` containing the compiler diagnostics.
-The Rust functions retain their existing signatures and structured errors.
+Invalid programs raise `zakc.ZakCompileError` (a `ValueError` subclass). Its
+`errors` list holds one `CompilerError` per diagnostic with read-only `code`,
+`message`, `line`, `col`, `end_line`, and `end_col` (one-based characters;
+1:1 when an error has no source location). `str(error)` is the full text,
+including Rust call-site traces; `message` omits them and is what the
+backend sends to the model. Both functions release the GIL while compiling.
+
+Install the extension into the current environment (maturin builds it with
+the release profile; a Rust toolchain is required):
+
+```sh
+pip install ./zakc
+```
+
+The backend's `requirements.txt` does this through `../zakc`.
 The bindings are opt-in; the default Rust library, CLI, tests, and throughput
 example build without linking libpython. On Unix, set
 `PYO3_BUILD_EXTENSION_MODULE=1` when building the Python extension so it uses
@@ -179,41 +194,31 @@ existing isolated evaluator. Trusted subprocess tests separately execute all
 15 fixtures, all discovered benchmark references (currently 50), and the 22
 runtime examples. Missing references fail the native fixture/signature checks.
 
-### Optional comparison with the legacy Python compiler
+### Performance
 
-This development harness compares both compiler implementations against the
-migrated case data. It is separate from the native and binding test suites.
-
-```sh
-.venv/bin/python -m pip install -r compiler/requirements.txt
-cargo build --manifest-path zakc/Cargo.toml
-.venv/bin/python zakc/compare.py --report zakc/verification.json
-.venv/bin/python zakc/compare.py --docker --report zakc/verification.json
-```
-
-Docker comparison mode checks all discovered references and reports their
-current hidden-case total. Old checked-in performance and verification JSON
-files describe their original ten-reference corpus; rerun the scripts to
-produce reports for the current task set.
-
-## Small throughput experiment
+The release profile uses fat LTO and one codegen unit. See
+[the benchmark report](../docs/benchmarks/compiler-comparison/REPORT.md) for
+the comparison with the retired Python compiler. Native throughput over the
+discovered corpus (startup, file reads, and execution excluded):
 
 ```sh
 cargo build --release --manifest-path zakc/Cargo.toml --example throughput
-.venv/bin/python zakc/benchmark.py --report zakc/benchmark-results.json
+zakc/target/release/examples/throughput 200
 ```
-
-Both pipelines parse, check, emit, and parse emitted Python over the same
-discovered programs (currently 15 fixtures plus 50 references). Startup,
-file reads, and execution are excluded. This is a local
-warm-process comparison, not an end-to-end benchmark of model inference or
-Docker execution. See the JSON result and analysis for qualifications.
 
 ## Prototype limits
 
 The parser conservatively limits input to 1 MB, delimiter nesting to 32,
-consecutive unary operators to 128, and total `?` markers outside strings to 128. The AST/checker also applies a depth budget of 128. Small host thread
+consecutive unary operators to 128, and conditional chain depth to 128. The AST/checker also applies a depth budget of 128. Small host thread
 stacks use `stacker` to provide a bounded larger stack for recursive stages.
 These budgets are deliberately conservative, including for wide programs;
-they are not language-spec limits. Grammar/parser edge-case equivalence and
-production resource budgets need further work before replacing the service.
+they are not language-spec limits. Conditional chain depth counts how deeply
+`?` markers chain (elif chains and nested or chained ternaries), summed over
+enclosing delimiters, because pest recurses once per chained `?` without a
+delimiter; without the budget, a 5,000-deep chain overflows the stack. Independent
+conditionals do not add up, so programs may contain any number of them. A chain
+ends at `;`, `,`, its closing delimiter, or a block's `}` not followed by `:`;
+a map literal's `}` never ends one, so the count cannot fall below pest's
+recursion (`tests/budgets.rs` fuzzes this). Span
+coordinates come from a line index built once per parse, so per-node cost does
+not depend on the source length.

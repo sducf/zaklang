@@ -76,8 +76,8 @@ divide by, for example when no task is paired.
 
 ## Tests
 
-Docker is faked, so no image is needed. The Zak tests need
-`compiler/requirements.txt` installed.
+Docker is faked, so no image is needed. The Zak tests need the `zakc`
+extension installed (`pip install ./zakc`).
 
 ```sh
 python3 -m unittest discover -s zakbench/tests -t .

@@ -8,7 +8,7 @@ feeding failures back for repair.
 
 ## Running one task
 
-From the repository root, with `compiler/requirements.txt` installed, the
+From the repository root, with the `zakc` extension installed (`pip install ./zakc`), the
 `zaklang-sandbox` Docker image built, and `GPU_API_URL` set:
 
 ```sh

@@ -42,5 +42,42 @@ class PythonBindingsTests(unittest.TestCase):
                 self.assertIn("2:5", message)
 
 
+    def test_compile_error_exposes_structured_diagnostics(self) -> None:
+        for function in (zakc.zak_check, zakc.zak_transpile):
+            with self.subTest(function=function.__name__):
+                with self.assertRaises(zakc.ZakCompileError) as caught:
+                    function("out(first);\nout(second)")
+                self.assertIsInstance(caught.exception, ValueError)
+                errors = caught.exception.errors
+                self.assertEqual(
+                    [(e.code, e.line, e.col, e.end_line, e.end_col) for e in errors],
+                    [("UNDEFINED_NAME", 1, 5, 1, 10), ("UNDEFINED_NAME", 2, 5, 2, 11)],
+                )
+                self.assertTrue(all(isinstance(e, zakc.CompilerError) for e in errors))
+                self.assertIn("first", errors[0].message)
+                # Rust call-site traces stay in str(exception), not in model-facing messages.
+                self.assertNotIn(".rs:", errors[0].message)
+
+    def test_syntax_error_has_one_based_location(self) -> None:
+        with self.assertRaises(zakc.ZakCompileError) as caught:
+            zakc.zak_transpile("x:=1;\nout(")
+        error, = caught.exception.errors
+        self.assertEqual((error.code, error.line, error.col), ("SYNTAX_ERROR", 2, 5))
+
+    def test_concurrent_threads_compile_identically(self) -> None:
+        import threading
+
+        source = "".join(f"@f{i}(a:[I])I{{t:=0;~x:a{{t+=x}}^t}}" for i in range(400))
+        results: list[str] = []
+        threads = [threading.Thread(target=lambda: results.append(zakc.zak_transpile(source).source))
+                   for _ in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(len(set(results)), 1)
+        self.assertEqual(len(results), 4)
+
+
 if __name__ == "__main__":
     unittest.main()

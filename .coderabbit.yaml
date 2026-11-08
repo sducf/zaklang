@@ -15,19 +15,19 @@ reviews:
     - "!**/*.pdf"
     - "!zakbench/results/**"
   path_instructions:
-    - path: "compiler/**"
+    - path: "zakc/**"
       instructions: |
-        ZakLang compiler (Lark LALR parser -> AST -> semantic checks -> Python transpiler). Zak is the code an LLM writes in ZakBench. Compiler errors go back to the model in the repair loop, and the emitted Python is executed and graded, so a silent change in behavior can invalidate benchmark results.
-        - `compile()` must never raise on bad source. It returns `CompileResult{ok, ast, errors}`, and every error has a 1-based `line`/`col`, a stable `code` from the README Diagnostics table, and a short message. Flag any new code that is not documented, and any message that is long or written in a friendly style.
-        - `ok` must mean an AST and no errors; failure must mean `ast=None` and at least one error. `KeyboardInterrupt`/`SystemExit` must still propagate.
-        - `src/grammar.txt` is the only source of truth for syntax. Keep the parser as LALR (no Earley). Flag new keywords or sigils, or a second way to write an existing construct: the v0.1 keyword/sigil set is frozen.
+        ZakLang compiler in Rust (pest PEG parser -> AST -> semantic checks -> Python emitter, with optional PyO3 bindings). Zak is the code an LLM writes in ZakBench. Compiler errors go back to the model in the repair loop, and the emitted Python is executed and graded, so a silent change in behavior can invalidate benchmark results.
+        - `zak_check`/`zak_transpile` must never panic on bad source. They return `Err(Vec<CompilerError>)`; the Python bindings raise `ZakCompileError` whose `errors` each have a 1-based `line`/`col`, a stable `code` (`ErrorCode`), and a short message. Flag any new code that is not documented, and any message that is long or written in a friendly style.
+        - `src/zak.pest` is the only source of truth for syntax. Flag new keywords or sigils, or a second way to write an existing construct: the v0.1 keyword/sigil set is frozen.
         - Types stay strict: I/R/B never mix implicitly, conditions are B, and `I/I` floors. Flag any implicit coercion.
-        - Transpiler output must be deterministic and byte-identical for the same AST. It must run on CPython 3.12 with no third-party imports, and emitted names keep the `_ZAK_` prefix.
+        - Emitter output must be deterministic and byte-identical for the same source. It must run on CPython 3.12 with no third-party imports, and emitted names keep the `_ZAK_` prefix.
         - Emitter changes must keep left-to-right, single evaluation and short-circuiting. They must also keep `srt`/`rev`/`keys`/`vals` returning arrays.
+        - Keep per-node work independent of total source length (for example, span coordinates use the precomputed line index); flag anything that rescans the input per node.
         - Never execute Zak or the emitted Python in compiler code. Tests do execution in time-limited subprocesses or the Docker sandbox.
         - Changes need tests: a positive case plus one invalid program asserting `code`/`line`/`col`, an updated snapshot when emitted code changes, and a conformance `.zak`+`.expected` pair for new constructs. Conformance compares stdout exactly and is never skipped.
         - Flag work beyond Zak Core: classes, closures, I/O, modules, nested functions, or comprehension support without its own ticket.
-        - Pyright must pass.
+        - `cargo fmt --check`, `cargo clippy -D warnings` (with and without `--features python`), and Pyright on `zakc.pyi` must pass.
     - path: "zakbench/**"
       instructions: |
         ZakBench runs matched Zak-vs-Python experiments and reports tokens-to-correctness (PRD F5). Results only count if the comparison is fair, deterministic, and reproducible from the stored run definition, so treat any drift in these areas as a bug.

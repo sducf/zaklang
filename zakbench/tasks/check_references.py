@@ -1,6 +1,6 @@
 """Check every ZakBench task folder and prove its references pass its hidden tests.
 
-Usage, from the repository root, with compiler/requirements.txt installed:
+Usage, from the repository root, with the zakc extension installed (pip install ./zakc):
 
     python3 zakbench/tasks/check_references.py
 
@@ -18,10 +18,9 @@ import subprocess
 import sys
 import tempfile
 
-TASKS_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(TASKS_DIR.parents[1]))
+import zakc
 
-from compiler.src import TranspileError, compile as compile_zak, transpile  # noqa: E402
+TASKS_DIR = Path(__file__).resolve().parent
 
 TIMEOUT_S = 5
 MIN_CASES = 5
@@ -113,14 +112,11 @@ def describe(error):
 def run_zak_reference(folder):
     """Compile, transpile and run reference.zak against the hidden tests; return (passed, total, problem)."""
     total = len(json.loads((folder / 'hidden_tests.json').read_text(encoding='utf-8')))
-    result = compile_zak((folder / 'reference.zak').read_text(encoding='utf-8'))
-    if not result.ok or result.ast is None:
-        return 0, total, 'reference.zak does not compile: ' + describe(result.errors[0])
     try:
-        source = transpile(result.ast)
-    except TranspileError as error:
-        return 0, total, 'reference.zak does not transpile: ' + describe(error.errors[0])
-    return run_solution(folder, 'reference.zak', source)
+        program = zakc.zak_transpile((folder / 'reference.zak').read_text(encoding='utf-8'))
+    except zakc.ZakCompileError as error:
+        return 0, total, 'reference.zak does not compile: ' + describe(error.errors[0])
+    return run_solution(folder, 'reference.zak', program.source)
 
 
 def check_task(folder):

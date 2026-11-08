@@ -126,17 +126,25 @@ class BenchmarkTaskControllerTests(unittest.TestCase):
         self.assertTrue(response.errors[0].message)
 
     def test_compile_does_not_execute_generated_python(self):
-        source = "@solve(a:[I])I{^sum(a)}"
-        import sys
-
-        sys.path.insert(0, str(benchmark.REPOSITORY_ROOT))
-        from compiler import src
-
-        with patch.object(src, "transpile", return_value="raise RuntimeError"):
-            response = benchmark.compile_controller(source)
+        response = benchmark.compile_controller(
+            '@solve(a:[I])I{out("side effect");^sum(a)}'
+        )
 
         self.assertTrue(response.ok)
-        self.assertEqual(response.python, "raise RuntimeError")
+        self.assertEqual(response.errors, [])
+        self.assertIn('globals()["solve"]', response.python)
+        self.assertIn("side effect", response.python)
+
+    def test_compile_reports_every_diagnostic_with_rust_coordinates(self):
+        response = benchmark.compile_controller("out(first);\nout(second)")
+
+        self.assertFalse(response.ok)
+        self.assertEqual(
+            [(error.code, error.line, error.col) for error in response.errors],
+            [("UNDEFINED_NAME", 1, 5), ("UNDEFINED_NAME", 2, 5)],
+        )
+        self.assertIn("first", response.errors[0].message)
+        self.assertNotIn(".rs:", response.errors[0].message)
 
     def test_task_routes_delegate_to_controllers(self):
         task = benchmark.get_task_controller("array_sum")
