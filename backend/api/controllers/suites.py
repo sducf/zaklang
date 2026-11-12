@@ -80,8 +80,10 @@ def get_suite(db: Session, suite_id: int) -> SuiteDetailResponse:
         from zakbench.evaluation.summary import summarize
 
         summary = summarize([_run_record(suite, run) for run in suite.runs])
+    # Pair ids are listed for any status, so a running suite can link the pairs it has finished.
+    pairs = {run.task_id: run.pair_id for run in suite.runs if run.pair_id is not None}
     return SuiteDetailResponse(**SuiteResponse.model_validate(suite, from_attributes=True).model_dump(),
-                               summary=summary)
+                               summary=summary, pairs=pairs)
 
 
 def _run_record(suite: SuiteRun, run: BenchmarkRun) -> dict[str, Any]:
