@@ -167,3 +167,5 @@ class SuiteDetailResponse(SuiteResponse):
     # Output of zakbench/evaluation/summary.py summarize(). None until the
     # suite has completed, because a partial suite has incomplete pairs.
     summary: dict[str, Any] | None
+    # task_id -> pair_id for every run stored with the suite, so each task can open its pair.
+    pairs: dict[str, UUID] = Field(default_factory=dict)

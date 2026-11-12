@@ -10,7 +10,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 import zakc
 
@@ -346,13 +346,21 @@ def list_runs_for_user(db: Session, user: User) -> list[RunListItem]:
     ]
 
 
+def _readable_by(user: User):
+    """Runs a user may read: their own, plus any run stored with a suite (suites are shared)."""
+    return or_(
+        BenchmarkRun.user_id == user.id,
+        BenchmarkRun.suite_run_id.isnot(None),
+    )
+
+
 def get_run_for_user(db: Session, user: User, run_id: int) -> RunResponse:
-    """Return one run only when it belongs to the current user."""
+    """Return one run when it belongs to the current user or to a shared suite."""
     run = (
         db.query(BenchmarkRun)
         .filter(
             BenchmarkRun.id == run_id,
-            BenchmarkRun.user_id == user.id,
+            _readable_by(user),
         )
         .first()
     )
@@ -369,12 +377,12 @@ def get_pair_for_user(
     user: User,
     pair_id: UUID,
 ) -> list[RunResponse]:
-    """Return both runs only when the pair belongs to the current user."""
+    """Return both runs when the pair belongs to the current user or to a shared suite."""
     runs = (
         db.query(BenchmarkRun)
         .filter(
             BenchmarkRun.pair_id == pair_id,
-            BenchmarkRun.user_id == user.id,
+            _readable_by(user),
         )
         .order_by(BenchmarkRun.id)
         .all()

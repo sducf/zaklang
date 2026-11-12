@@ -17,6 +17,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from api.controllers.auth import get_current_user_controller
+from api.controllers.benchmark import create_queued_pair
 from api.controllers.suites import SuiteStore
 from api.routes import benchmark as benchmark_routes
 from database.models import Attempt, Base, BenchmarkRun, Evaluation, SuiteRun, User
@@ -212,6 +213,37 @@ class PersistedSuiteTests(SuiteDatabaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('by_category', response.json()['summary'])
+
+    def test_suite_detail_lists_one_pair_id_per_task(self):
+        self.run_suite()
+        suite_id = self.db.query(SuiteRun).one().id
+        self.log_in()
+
+        pairs = self.client.get(f'/suites/{suite_id}').json()['pairs']
+
+        stored = {(run.task_id, str(run.pair_id)) for run in self.db.query(BenchmarkRun)}
+        self.assertEqual(set(pairs), set(TASKS))
+        self.assertEqual(set(pairs.items()), stored)
+
+    def test_other_members_can_read_suite_runs_but_not_personal_ones(self):
+        self.run_suite()
+        personal_pair_id, personal_runs = create_queued_pair(self.db, self.user, 'array_sum')
+        self.db.commit()
+        suite_run = self.db.query(BenchmarkRun).filter(BenchmarkRun.suite_run_id.isnot(None)).first()
+        member = User(email='member@example.com', password_hash='hash')
+        self.db.add(member)
+        self.db.commit()
+        app.dependency_overrides[get_current_user_controller] = lambda: member
+
+        pair = self.client.get(f'/pairs/{suite_run.pair_id}')
+        self.assertEqual(pair.status_code, 200)
+        self.assertEqual({run['language'] for run in pair.json()}, {'zak', 'python'})
+        self.assertEqual(self.client.get(f'/runs/{suite_run.id}').status_code, 200)
+
+        self.assertEqual(self.client.get(f'/pairs/{personal_pair_id}').status_code, 404)
+        self.assertEqual(self.client.get(f'/runs/{personal_runs[0].id}').status_code, 404)
+        # The run list stays personal: suite runs do not show up in another member's history.
+        self.assertEqual(self.client.get('/runs').json(), [])
 
     def test_failed_summary_write_marks_the_suite_failed(self):
         with patch.object(suite_runner, 'write_summary', side_effect=OSError('disk full')), \
