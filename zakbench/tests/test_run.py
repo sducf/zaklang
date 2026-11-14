@@ -22,8 +22,8 @@ BAD_ZAK = '@solve(nums:[I])I{^sum(nums)+}'
 GOOD_PYTHON = 'def solve(nums):\n    return sum(nums)\n'
 
 
-def reply(text, prompt_tokens=100, completion_tokens=20):
-    return Generation(text, prompt_tokens, completion_tokens, 50, 'test-model', 'stop')
+def reply(text, prompt_tokens=100, completion_tokens=20, retries=0):
+    return Generation(text, prompt_tokens, completion_tokens, 50, 'test-model', 'stop', retries)
 
 
 def sandbox(outcome, failed=()):
@@ -91,6 +91,12 @@ class RunSingleTest(unittest.TestCase):
         self.assertIn('Test 2 of 6 failed. Inputs: [[-2, 5, 1]]. Expected: 4. Got: 5.', saved)
         for case in cases[2:]:  # every case except the summarized one stays out
             self.assertNotIn(json.dumps(case['inputs']), saved)
+
+    def test_each_attempt_records_its_inference_retries(self):
+        result, _ = self.run_loop([reply(GOOD_PYTHON, retries=2), reply(GOOD_PYTHON)],
+                                  [sandbox('fail', [2]), sandbox('pass')], language='python')
+
+        self.assertEqual([attempt['inference_retries'] for attempt in result.attempts], [2, 0])
 
     def test_given_source_is_evaluated_once_without_generating(self):
         result, generate = self.run_loop([], [sandbox('fail', [1])], source=GOOD_ZAK)
