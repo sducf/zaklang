@@ -92,7 +92,7 @@ def run_single(
     for number in range(1, max_attempts + 1):
         if source is not None:
             completion, code = None, source
-            prompt_tokens = completion_tokens = latency_ms = 0
+            prompt_tokens = completion_tokens = latency_ms = retries = 0
             finish_reason = None
         else:
             generation = generate(
@@ -104,6 +104,7 @@ def run_single(
             completion, code = generation.text, extract_code(generation.text)
             prompt_tokens, completion_tokens = generation.prompt_tokens, generation.completion_tokens
             latency_ms, finish_reason = generation.latency_ms, generation.finish_reason
+            retries = generation.retries
 
         if code:
             evaluation = evaluate(code, task_id, language)
@@ -119,6 +120,7 @@ def run_single(
             'completion_tokens': completion_tokens,
             'latency_ms': latency_ms,
             'finish_reason': finish_reason,
+            'inference_retries': retries,
             'compile_ok': evaluation.compile_ok,
             'compile_errors': evaluation.compile_errors,
             'transpiled_python': evaluation.transpiled_python,
