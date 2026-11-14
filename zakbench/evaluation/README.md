@@ -74,6 +74,39 @@ An error run (a run that crashed the harness) counts as not passed. Rates and
 ratios have 4 decimal places. A ratio is `null` when there is nothing to
 divide by, for example when no task is paired.
 
+## break_even.py
+
+`zakbench break-even` reads the run JSON files in one suite results folder and
+compares Zak and Python total tokens by task size (SD-60). Like `summarize`,
+it needs no model server or database.
+
+```sh
+python3 -m zakbench break-even zakbench/results/<suite_run_id>/ --csv zakbench/reports/break-even-v0.1.csv
+```
+
+It prints a binned table and the break-even statements as Markdown for the
+baseline report, and `--csv` writes one row per task both languages solved.
+
+- **Task size** is the completion tokens of the passing Python attempt: the
+  length of a working Python solution on the reference model's tokenizer.
+- **Spec overhead** is the Zak first prompt minus the Python first prompt (the
+  spec, the examples and their headings). Every attempt resends it, so the
+  "spec subtracted" variant removes it once per Zak attempt. Pass
+  `--spec-tokens <n>` to use a fixed count instead, such as the SD-54 one.
+- **Break-even** comes from a straight-line fit of Zak minus Python tokens
+  against size. It is reported only where the line crosses zero inside the
+  suite's size range. Otherwise the output says Zak used fewer or more tokens
+  across the whole range.
+
+| CSV column | Meaning |
+|---|---|
+| `size_tokens` | Task size, as above |
+| `zak_tokens`, `python_tokens` | `total_tokens` of each run, repairs included |
+| `zak_attempts` | Attempts the Zak run used |
+| `spec_tokens` | Spec overhead per attempt |
+| `zak_minus_python` | Zak tokens minus Python tokens; negative means Zak used fewer |
+| `zak_minus_python_without_spec` | The same, with `spec_tokens` removed once per Zak attempt |
+
 ## Tests
 
 Docker is faked, so no image is needed. The Zak tests need the `zakc`

@@ -4,12 +4,14 @@
     python3 -m zakbench run --suite dev --lang both --model <id> --seed 0
     python3 -m zakbench run --suite dev --lang both --persist --user-email <email>   (also needs DATABASE_URL)
     python3 -m zakbench summarize zakbench/results/<suite_run_id>/
+    python3 -m zakbench break-even zakbench/results/<suite_run_id>/ --csv zakbench/reports/break-even-v0.1.csv
 """
 
 import argparse
 from pathlib import Path
 import sys
 
+from zakbench.evaluation.break_even import break_even_rows, report_markdown, rows_csv
 from zakbench.runners.inference import InferenceError
 from zakbench.runners.prompt import PROMPT_VERSION
 from zakbench.runners.run import RESULTS, run_single, write_result
@@ -55,7 +57,24 @@ def main(argv=None, results_dir=RESULTS, open_store=open_store):
     run.add_argument('--user-email', help='with --persist: the existing user recorded as the one who launched it')
     summarize = commands.add_parser('summarize', help='write summary.json and runs.csv for a suite run')
     summarize.add_argument('folder')
+    break_even = commands.add_parser('break-even', help='token savings by task size for a suite run (SD-60)')
+    break_even.add_argument('folder')
+    break_even.add_argument('--csv', help='write the per-task rows to this CSV file')
+    break_even.add_argument('--spec-tokens', type=int,
+                            help='spec overhead per attempt; by default the Zak minus Python first prompt')
     args = parser.parse_args(argv)
+
+    if args.command == 'break-even':
+        try:
+            rows = break_even_rows(load_runs(args.folder), args.spec_tokens)
+            if args.csv:
+                Path(args.csv).parent.mkdir(parents=True, exist_ok=True)
+                Path(args.csv).write_text(rows_csv(rows), encoding='utf-8')
+        except (OSError, ValueError, KeyError, IndexError) as error:
+            print(f'error: {error}', file=sys.stderr)
+            return 1
+        print(report_markdown(rows), end='')
+        return 0
 
     if args.command == 'summarize':
         try:
