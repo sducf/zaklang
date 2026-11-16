@@ -221,7 +221,11 @@ export default function ExplorerPage() {
                 </div>
                 <Link
                     className="btn btn-primary"
-                    to={taskId ? `/playground?task=${taskId}` : "/playground"}
+                    to={
+                        taskId
+                            ? `/playground?task=${encodeURIComponent(taskId)}`
+                            : "/playground"
+                    }
                 >
                     <Icon name="plus" />
                     New playground run
