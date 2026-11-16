@@ -122,7 +122,9 @@ export default function ExplorerPage() {
                 else next.delete(key);
                 return next;
             },
-            { replace: key !== "run" },
+            // Opening a run adds a history entry so Back closes it; closing replaces
+            // that entry so Back doesn't reopen it.
+            { replace: key !== "run" || value === null },
         );
     }
 
@@ -334,7 +336,52 @@ export default function ExplorerPage() {
             </div>
             <div className="overflow-hidden rounded-lg border border-border-default">
                 {visible.length > 0 && (
-                    <div className="relative overflow-x-auto">
+                    // Below md the table becomes a stacked list so nothing hides behind a sideways scroll.
+                    <ul className="md:hidden">
+                        {visible.map((run, index) => {
+                            const detail = details[index];
+                            const pending = detail?.isPending ?? true;
+                            return (
+                                <li
+                                    key={run.id}
+                                    className="border-b border-border-default last:border-b-0"
+                                >
+                                    <button
+                                        type="button"
+                                        className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3 text-left hover:bg-surface-hover"
+                                        onClick={() => setParam("run", String(run.id))}
+                                        aria-label={`Inspect run ${run.id}, ${titles.get(run.task_id) ?? run.task_id}, ${languageName(run.language)}, ${run.status}`}
+                                    >
+                                        <span className="flex min-w-0 flex-col">
+                                            <span className="truncate">
+                                                {titles.get(run.task_id) ?? run.task_id}
+                                            </span>
+                                            <small className="text-xs text-text-tertiary">
+                                                #{run.id} · {languageName(run.language)}
+                                            </small>
+                                        </span>
+                                        <Icon
+                                            name="chevron-right"
+                                            className="row-span-2 text-icon-secondary"
+                                        />
+                                        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-text-secondary">
+                                            <StatusBadge status={run.status} />
+                                            <span>
+                                                {detail?.data
+                                                    ? `${detail.data.total_tokens.toLocaleString()} tokens`
+                                                    : pending
+                                                      ? "… tokens"
+                                                      : "Tokens unavailable"}
+                                            </span>
+                                        </span>
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+                {visible.length > 0 && (
+                    <div className="relative overflow-x-auto max-md:hidden">
                         <table className="w-full min-w-[760px] border-collapse">
                             <thead className="border-b border-border-default bg-surface-default">
                                 <tr>

@@ -45,6 +45,15 @@ const outcomeLabels = {
     not_run: "Not run",
 };
 
+const statusWords = {
+    queued: "queued",
+    running: "running",
+    passed: "passed",
+    failed: "failed",
+    error: "errored",
+    timeout: "timed out",
+};
+
 function plural(count: number, word: string) {
     return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
@@ -83,13 +92,11 @@ function RunBar({ run }: { run: Run | undefined }) {
         >
             <Stat label="Run">{run ? `#${run.id}` : "–"}</Stat>
             <Stat label="Status">
-                <span aria-live="polite">
-                    {run ? (
-                        <StatusBadge status={run.status} />
-                    ) : (
-                        <span className="badge badge-outline">Ready</span>
-                    )}
-                </span>
+                {run ? (
+                    <StatusBadge status={run.status} />
+                ) : (
+                    <span className="badge badge-outline">Ready</span>
+                )}
             </Stat>
             <Stat label="Attempts">{run ? run.attempts_used : "–"}</Stat>
             <div className="flex flex-col gap-1">
@@ -370,6 +377,29 @@ function PlaygroundSession({
     // Results
     const passed = finished && run.status === "passed";
 
+    // One status message for screen readers, so compile and run results are heard (WCAG 4.1.3).
+    let announcement = "";
+    if (compileMutation.isPending) {
+        announcement = "Compiling";
+    } else if (compiled) {
+        announcement = compiled.ok
+            ? "Compiled, no errors"
+            : `Did not compile, ${plural(compiled.errors.length, "error")}`;
+    } else if (finished) {
+        const result = testCount
+            ? `${testCount.passed} of ${testCount.total} hidden tests passed`
+            : outcome
+              ? outcomeLabels[outcome]
+              : "No tests ran";
+        announcement = `Run ${statusWords[run.status]}. ${result}`;
+    } else if (polling && attempt?.compile_ok === false) {
+        announcement = `Attempt ${attempt.index} did not compile. Retrying`;
+    } else if (run) {
+        announcement = run.status === "queued" ? "Run queued" : "Running";
+    } else if (runMutation.isPending) {
+        announcement = "Starting run";
+    }
+
     return (
         <div
             onKeyDown={(event) => {
@@ -379,6 +409,9 @@ function PlaygroundSession({
                 }
             }}
         >
+            <p className="sr-only" role="status">
+                {announcement}
+            </p>
             {requestError && (
                 <p
                     className="mb-4 rounded-md border border-border-error px-4 py-3 text-text-error"

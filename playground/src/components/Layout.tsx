@@ -10,6 +10,35 @@ const links = [
     { to: "/docs", label: "Docs" },
 ];
 
+const pageTitles: Record<string, string> = {
+    "/playground": "Playground",
+    "/explorer": "Explorer",
+    "/docs": "Docs",
+    "/login": "Sign in",
+};
+
+/**
+ * Names each route in the tab title (WCAG 2.4.2) and, after a navigation,
+ * moves focus to the new page's heading so screen readers start there.
+ */
+function useRouteAnnouncement(pathname: string) {
+    const firstRender = useRef(true);
+    useEffect(() => {
+        const page = pageTitles[pathname];
+        document.title = page ? `${page} · ZakLang` : "ZakLang";
+
+        // On first load the browser already starts at the top of the page.
+        if (firstRender.current) {
+            firstRender.current = false;
+            return;
+        }
+        const heading = document.querySelector<HTMLElement>("#main-content h1");
+        if (!heading) return;
+        heading.tabIndex = -1;
+        heading.focus();
+    }, [pathname]);
+}
+
 function AccountMenu() {
     const auth = useAuth();
     const navigate = useNavigate();
@@ -92,6 +121,7 @@ function AccountMenu() {
 
 function Layout() {
     const location = useLocation();
+    useRouteAnnouncement(location.pathname);
 
     // Login is a centered card on its own, with no top bar.
     if (location.pathname === "/login") {

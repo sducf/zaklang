@@ -7,6 +7,7 @@ import {
     setTokens,
 } from "@/lib/api";
 import type { TokenPair } from "@/lib/api";
+import { queryClient } from "@/lib/queryClient";
 
 export interface User {
     id: string;
@@ -64,12 +65,18 @@ export async function register(email: string, password: string) {
     await login(email, password);
 }
 
-export function logout() {
-    setTokens(null);
+// Cached runs belong to the user who fetched them, so drop them on sign-out.
+function signOut() {
+    queryClient.clear();
     setState({ status: "signed-out" });
 }
 
-onSessionExpired(() => setState({ status: "signed-out" }));
+export function logout() {
+    setTokens(null);
+    signOut();
+}
+
+onSessionExpired(signOut);
 
 // Restore a session from the stored refresh token on page load.
 if (state.status === "loading") {
