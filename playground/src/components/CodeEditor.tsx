@@ -25,8 +25,9 @@ function highlight(code: string) {
 }
 
 // Shared by the textarea and its highlighted overlay so the two line up exactly.
+// 16px on small screens stops iOS Safari zooming in; the 20px line height keeps the gutter aligned.
 const codeLayer =
-    "absolute inset-0 m-0 h-full w-full overflow-auto border-0 pr-4 text-sm leading-5 whitespace-pre [tab-size:2]";
+    "absolute inset-0 m-0 h-full w-full overflow-auto border-0 pr-4 text-sm leading-5 whitespace-pre [tab-size:2] max-md:text-[16px]";
 
 export default function CodeEditor({
     value,
@@ -105,7 +106,7 @@ export default function CodeEditor({
                     <Icon name={copied ? "check" : "copy"} />
                 </button>
             </div>
-            <div className="relative flex h-64 py-3 font-mono text-sm leading-5 max-md:h-48">
+            <div className="relative flex h-64 py-3 font-mono text-sm leading-5 max-md:h-48 max-md:text-[16px]">
                 <div
                     className="w-10 shrink-0 overflow-hidden pr-3 text-right text-code-gutter select-none"
                     ref={lineNumbers}

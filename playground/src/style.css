@@ -180,6 +180,10 @@
         outline: 2px solid var(--color-border-focus);
         outline-offset: 2px;
     }
+    /* Headings get focus after a route change only so screen readers start there; they aren't controls. */
+    h1[tabindex="-1"]:focus {
+        outline: none;
+    }
     button,
     select {
         cursor: pointer;
@@ -277,6 +281,12 @@
     }
     select.field {
         padding-right: 36px;
+    }
+    /* iOS Safari zooms into any field under 16px when it gets focus. */
+    @media (width < 48rem) {
+        .field {
+            font-size: 16px;
+        }
     }
 
     .badge {

@@ -9,7 +9,7 @@ function RequireAuth() {
     if (auth.status === "loading") return null;
     if (auth.status === "signed-out") {
         return (
-            <Navigate to="/login" replace state={{ from: location.pathname }} />
+            <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
         );
     }
     return <Outlet />;
