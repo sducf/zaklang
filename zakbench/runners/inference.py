@@ -17,12 +17,26 @@ import urllib.error
 import urllib.request
 
 
+# Seconds to wait before each retry of a transient failure: 2 retries, so 3 tries in all.
+RETRY_DELAYS_S = (2, 4)
+
+
 class InferenceError(Exception):
-    """The server could not be reached, returned an error, or sent an unusable response."""
+    """The server could not be reached, returned an error, or sent an unusable response.
+
+    transient is True for failures worth retrying: a timeout, an HTTP 5xx, or a dropped connection.
+    """
+
+    def __init__(self, message, transient=False):
+        super().__init__(message)
+        self.transient = transient
 
 
 class InferenceTimeout(InferenceError):
     """The server did not answer within the timeout."""
+
+    def __init__(self, message):
+        super().__init__(message, transient=True)
 
 
 @dataclass(frozen=True)
@@ -33,10 +47,15 @@ class Generation:
     latency_ms: int
     model_id: str
     finish_reason: str | None
+    retries: int = 0
 
 
 def generate(messages, *, seed, max_tokens, temperature=0.0, timeout_s=120.0):
-    """Send chat messages to llama-server and return its completion with exact token counts."""
+    """Send chat messages to llama-server and return its completion with exact token counts.
+
+    A transient failure is retried after each delay in RETRY_DELAYS_S. Requests are deterministic,
+    so a retry gets the same completion. Tokens and latency come from the successful try only.
+    """
     base_url = os.getenv('GPU_API_URL', '').rstrip('/')
     if not base_url:
         raise InferenceError('GPU_API_URL is not set')
@@ -52,20 +71,15 @@ def generate(messages, *, seed, max_tokens, temperature=0.0, timeout_s=120.0):
         f'{base_url}/v1/chat/completions', data=json.dumps(body).encode('utf-8'),
         headers={'Content-Type': 'application/json'}, method='POST')
 
-    started = time.monotonic()
-    try:
-        with urllib.request.urlopen(request, timeout=timeout_s) as response:
-            reply = json.loads(response.read())
-    except urllib.error.HTTPError as error:
-        raise InferenceError(f'llama-server returned HTTP {error.code}') from None
-    except TimeoutError:
-        raise InferenceTimeout(f'llama-server did not answer within {timeout_s:g}s') from None
-    except urllib.error.URLError as error:
-        if isinstance(error.reason, TimeoutError):
-            raise InferenceTimeout(f'llama-server did not answer within {timeout_s:g}s') from None
-        raise InferenceError(f'could not reach llama-server: {error.reason}') from None
-    except (OSError, ValueError) as error:
-        raise InferenceError(f'bad response from llama-server: {type(error).__name__}') from None
+    for retries, delay in enumerate((*RETRY_DELAYS_S, None)):
+        started = time.monotonic()
+        try:
+            reply = _post(request, timeout_s)
+            break
+        except InferenceError as error:
+            if not error.transient or delay is None:
+                raise
+            time.sleep(delay)
     latency_ms = round((time.monotonic() - started) * 1000)
 
     try:
@@ -79,7 +93,26 @@ def generate(messages, *, seed, max_tokens, temperature=0.0, timeout_s=120.0):
         raise InferenceError('llama-server response has invalid completion or token usage')
 
     return Generation(text, prompt_tokens, completion_tokens, latency_ms,
-                      str(reply.get('model', '')), choice.get('finish_reason'))
+                      str(reply.get('model', '')), choice.get('finish_reason'), retries)
+
+
+def _post(request, timeout_s):
+    """Send one request and return the parsed reply. Raises InferenceError, marked transient or not."""
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_s) as response:
+            return json.loads(response.read())
+    except urllib.error.HTTPError as error:
+        raise InferenceError(f'llama-server returned HTTP {error.code}', transient=error.code >= 500) from None
+    except TimeoutError:
+        raise InferenceTimeout(f'llama-server did not answer within {timeout_s:g}s') from None
+    except urllib.error.URLError as error:
+        if isinstance(error.reason, TimeoutError):
+            raise InferenceTimeout(f'llama-server did not answer within {timeout_s:g}s') from None
+        raise InferenceError(f'could not reach llama-server: {error.reason}', transient=True) from None
+    except (OSError, ValueError) as error:
+        # A connection dropped mid-response is worth retrying. Bad JSON is not.
+        raise InferenceError(f'bad response from llama-server: {type(error).__name__}',
+                             transient=isinstance(error, ConnectionError)) from None
 
 
 def main(argv):

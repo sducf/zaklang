@@ -112,6 +112,15 @@ result.text, result.prompt_tokens, result.completion_tokens, result.latency_ms
   (default 120 s). `InferenceError` covers every other failure: no URL,
   unreachable server, HTTP error, or bad response. Error messages never
   include the prompt.
+- Transient failures are retried up to 2 times, after 2 s and then 4 s
+  (`RETRY_DELAYS_S`). Transient means a timeout, an HTTP 5xx, or a refused or
+  dropped connection. An HTTP 4xx, invalid JSON, or a reply without token usage
+  fails at once. Requests are deterministic, so a retry gets the same
+  completion. Tokens and `latency_ms` come from the successful try only, and
+  `retries` says how many tries failed first. If every try fails, the last
+  error is raised.
+- `run_single` stores `retries` on each attempt as `inference_retries` (0 for
+  given source).
 
 Tests fake the model server and Docker, so they need no GPU or image:
 
