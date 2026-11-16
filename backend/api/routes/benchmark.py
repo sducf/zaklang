@@ -3,13 +3,12 @@
 from typing import NoReturn
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from sqlalchemy.orm import Session
 
 from api.schemas.benchmark import (
     CompileRequest,
     CompileResponse,
-    Language,
     PairCreateRequest,
     PairCreateResponse,
     RunCreateRequest,
@@ -26,9 +25,10 @@ from api.controllers.benchmark import (
     compile_controller,
     create_queued_pair,
     create_queued_run,
-    execute_run_in_background,
+    enforce_viewer_run_quota,
     get_run_for_user,
     get_pair_for_user,
+    run_queue_position,
     get_task_controller,
     list_tasks_controller,
     list_runs_for_user,
@@ -71,10 +71,14 @@ def compile_source(payload: CompileRequest) -> CompileResponse:
 )
 def create_run_pair(
     payload: PairCreateRequest,
-    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user_controller),
     db: Session = Depends(get_db),
 ) -> PairCreateResponse:
+    if user.role not in {"member", "admin"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Member or admin role required to launch matched runs",
+        )
     get_task_controller(payload.task_id)
     pair_id, runs = create_queued_pair(
         db,
@@ -84,17 +88,6 @@ def create_run_pair(
         seed=payload.seed,
     )
     db.commit()
-    for run in runs:
-        db.refresh(run)
-        background_tasks.add_task(
-            execute_run_in_background,
-            run.id,
-            payload.task_id,
-            Language(run.language),
-            None,
-            payload.temperature,
-            payload.seed,
-        )
     return PairCreateResponse(
         pair_id=pair_id,
         run_ids=[run.id for run in runs],
@@ -108,11 +101,11 @@ def create_run_pair(
 )
 def create_run(
     payload: RunCreateRequest,
-    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user_controller),
     db: Session = Depends(get_db),
 ) -> RunResponse:
     get_task_controller(payload.task_id)
+    enforce_viewer_run_quota(db, user)
     run = create_queued_run(
         db,
         user,
@@ -120,19 +113,14 @@ def create_run(
         payload.language,
         temperature=payload.temperature,
         seed=payload.seed,
+        source=payload.source,
     )
     db.commit()
     db.refresh(run)
-    background_tasks.add_task(
-        execute_run_in_background,
-        run.id,
-        payload.task_id,
-        payload.language,
-        payload.source,
-        payload.temperature,
-        payload.seed,
+    return run_to_response(
+        run,
+        queue_position=run_queue_position(db, run),
     )
-    return run_to_response(run)
 
 
 @router.get("/runs/{run_id}", response_model=RunResponse)

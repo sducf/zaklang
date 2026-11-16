@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 import re
 import sys
@@ -10,7 +10,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 import zakc
 
@@ -40,6 +40,7 @@ SEED = 0
 MAX_ATTEMPTS = 3
 MAX_TOKENS = 1024
 DEFAULT_TEMPERATURE = 0.0
+VIEWER_DAILY_RUN_QUOTA = 20
 logger = logging.getLogger(__name__)
 
 
@@ -153,6 +154,7 @@ def create_queued_run(
     temperature: float | None = None,
     pair_id: UUID | None = None,
     seed: int | None = None,
+    source: str | None = None,
 ) -> BenchmarkRun:
     """Add a queued run and flush it so its ID is available to the caller."""
     effective_temperature = (
@@ -172,6 +174,7 @@ def create_queued_run(
         max_attempts=MAX_ATTEMPTS,
         max_tokens=MAX_TOKENS,
         pair_id=pair_id,
+        source=source,
         status=RunStatus.QUEUED.value,
     )
     db.add(run)
@@ -203,39 +206,88 @@ def create_queued_pair(
     return pair_id, runs
 
 
-def execute_run_in_background(
-    run_id: int,
-    task_id: str,
-    language: Language,
-    source: str | None,
-    temperature: float | None = None,
-    seed: int | None = None,
+def enforce_viewer_run_quota(
+    db: Session,
+    user: User,
+    now: datetime | None = None,
 ) -> None:
-    """Execute a run using a fresh database session after the response."""
+    """Reserve a viewer's daily single-run quota before adding the run."""
+    if user.role != "viewer":
+        return
+
+    db.query(User.id).filter(User.id == user.id).with_for_update().one()
+    current_time = now or datetime.now(timezone.utc)
+    current_time = current_time.astimezone(timezone.utc)
+    day_start = datetime.combine(current_time.date(), time.min, timezone.utc)
+    day_end = day_start + timedelta(days=1)
+    run_count = (
+        db.query(func.count(BenchmarkRun.id))
+        .filter(
+            BenchmarkRun.user_id == user.id,
+            BenchmarkRun.pair_id.is_(None),
+            BenchmarkRun.suite_run_id.is_(None),
+            BenchmarkRun.started_at >= day_start,
+            BenchmarkRun.started_at < day_end,
+        )
+        .scalar()
+    )
+    if run_count >= VIEWER_DAILY_RUN_QUOTA:
+        reset_time = day_end.isoformat()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                f"Daily run quota of {VIEWER_DAILY_RUN_QUOTA} reached. "
+                f"The quota resets at {reset_time}."
+            ),
+        )
+
+
+def run_queue_position(db: Session, run: BenchmarkRun) -> int | None:
+    if run.status != RunStatus.QUEUED.value:
+        return None
+    position = (
+        db.query(func.count(BenchmarkRun.id))
+        .filter(
+            BenchmarkRun.status == RunStatus.QUEUED.value,
+            or_(
+                BenchmarkRun.started_at < run.started_at,
+                and_(
+                    BenchmarkRun.started_at == run.started_at,
+                    BenchmarkRun.id <= run.id,
+                ),
+            ),
+        )
+        .scalar()
+    )
+    return position or None
+
+
+def execute_run(run_id: int) -> None:
+    """Execute a claimed run from its durable database inputs."""
     db = SessionLocal()
     try:
         run = db.get(BenchmarkRun, run_id)
         if run is None:
-            logger.error("Background run %s no longer exists", run_id)
+            logger.error("Queued run %s no longer exists", run_id)
+            return
+        if run.status != RunStatus.RUNNING.value:
+            logger.error(
+                "Refusing to execute run %s with status %s",
+                run_id,
+                run.status,
+            )
             return
 
         effective_temperature = run.temperature
         if effective_temperature is None:
-            effective_temperature = (
-                temperature
-                if temperature is not None
-                else DEFAULT_TEMPERATURE
-            )
-        effective_seed = run.seed if run.seed is not None else (
-            seed if seed is not None else SEED
-        )
+            effective_temperature = DEFAULT_TEMPERATURE
+        effective_seed = run.seed if run.seed is not None else SEED
         run.seed = effective_seed
         effective_prompt_version = run.prompt_version or PROMPT_VERSION
         effective_max_attempts = run.max_attempts or MAX_ATTEMPTS
         effective_max_tokens = run.max_tokens or MAX_TOKENS
         run.temperature = effective_temperature
         run.max_tokens = effective_max_tokens
-        run.status = RunStatus.RUNNING.value
         db.commit()
 
         if str(REPOSITORY_ROOT) not in sys.path:
@@ -243,20 +295,20 @@ def execute_run_in_background(
         from zakbench.runners.run import run_single
 
         result = run_single(
-            task_id,
-            language.value,
-            MODEL_NAME,
+            run.task_id,
+            run.language,
+            run.model_name,
             run.spec_version,
             effective_prompt_version,
             effective_seed,
             max_attempts=effective_max_attempts,
             max_tokens=effective_max_tokens,
-            source=source,
+            source=run.source,
             temperature=effective_temperature,
         )
         _persist_run_result(db, run, result)
     except Exception:
-        logger.exception("Background benchmark run %s failed", run_id)
+        logger.exception("Benchmark run %s failed", run_id)
         try:
             db.rollback()
             run = db.get(BenchmarkRun, run_id)
@@ -369,7 +421,10 @@ def get_run_for_user(db: Session, user: User, run_id: int) -> RunResponse:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Run not found",
         )
-    return run_to_response(run)
+    return run_to_response(
+        run,
+        queue_position=run_queue_position(db, run),
+    )
 
 
 def get_pair_for_user(
@@ -392,10 +447,16 @@ def get_pair_for_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Pair not found",
         )
-    return [run_to_response(run) for run in runs]
+    return [
+        run_to_response(run, queue_position=run_queue_position(db, run))
+        for run in runs
+    ]
 
 
-def run_to_response(run: BenchmarkRun) -> RunResponse:
+def run_to_response(
+    run: BenchmarkRun,
+    queue_position: int | None = None,
+) -> RunResponse:
     """Convert a persisted run and its related rows to the public response."""
     attempts = [
         _attempt_to_response(attempt)
@@ -415,6 +476,7 @@ def run_to_response(run: BenchmarkRun) -> RunResponse:
         started_at=run.started_at,
         completed_at=run.completed_at,
         status=RunStatus(run.status),
+        queue_position=queue_position,
         attempts_used=len(attempts),
         prompt_tokens_total=sum(
             attempt.prompt_tokens or 0 for attempt in attempts

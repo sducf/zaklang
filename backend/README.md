@@ -107,6 +107,22 @@ uvicorn main:app --reload
 
 Open the API documentation at `http://127.0.0.1:8000/docs`.
 
+### Railway benchmark worker
+
+Deploy the API and benchmark worker as separate Railway services from the same
+backend image, with the same `DATABASE_URL` and runtime environment. Keep one
+worker replica so benchmark calls use the single GPU serially. Set the worker
+service's start command to:
+
+```bash
+python -m worker
+```
+
+The container's working directory is `backend/`. The worker polls queued runs
+from the database, executes them oldest first, and marks any `running` rows
+left by a previous process as `error` on startup. The API service only stores
+new runs in the queue; it does not execute them.
+
 ## Benchmark API
 
 The benchmark API exposes public task metadata and compilation, plus
@@ -137,20 +153,25 @@ Suites are shared benchmark results, so any authenticated user can read every su
 
 ### Authenticated run endpoints
 
-- `POST /runs` creates a `queued` run and schedules the single-run worker with
-  FastAPI `BackgroundTasks`. It accepts an optional `temperature`; omitted
+- `POST /runs` creates a `queued` run for the database-backed worker. It
+  accepts an optional `temperature`; omitted
   values use the runner default of `0.0`; supplied values must be between
   `0.0` and `2.0`. It also accepts an optional `seed`; omitted seeds use the
   backend default, while supplied seeds must be non-negative and fit the
-  database signed 32-bit-integer range.
+  database signed 32-bit-integer range. Viewers may create at most 20 such
+  runs per UTC calendar day. Queued and running runs count toward the quota;
+  pair and suite launches are not counted.
 - `POST /runs/pair` creates one queued Zak run and one queued Python run for
-  the same task, linked by a shared `pair_id`, and schedules both workers.
+  the same task, linked by a shared `pair_id`. Members and admins may launch
+  pairs; viewers receive `403`.
   The request accepts `task_id`, optional `temperature`, and optional `seed`;
   the same temperature and seed validation applies, and the response contains
   the `pair_id` and the two run IDs.
 - `GET /runs` returns only runs owned by the authenticated caller.
 - `GET /runs/{id}` returns the caller's aggregate run or `404` for another
-  user's run.
+  user's run. While the run is queued, its `queue_position` is its one-based
+  position in the global FIFO queue; it is `null` after the run leaves the
+  queue.
 - `GET /pairs/{pair_id}` returns both linked runs in `RunResponse` shape and
   returns `404` when the pair does not belong to the authenticated caller.
 
@@ -164,10 +185,15 @@ backend-controlled constants and must be bumped in both the backend and
 ZakBench documentation/source when their respective templates or language
 specification changes.
 
-The worker opens a separate database session, calls the existing ZakBench
-single-run function, persists each `Attempt` and `Evaluation`, and updates the
-run to `passed`, `failed`, `timeout`, or `error`. Generated code is not
-executed in the API process; evaluation delegates execution to the sandbox.
+The worker calls the existing ZakBench single-run function, persists each
+`Attempt` and `Evaluation`, and updates the run to `passed`, `failed`,
+`timeout`, or `error`. Run inputs, including custom source, are stored with
+the queued run so the worker can execute it independently of the API request.
+Generated code is not executed in the API process; evaluation delegates
+execution to the sandbox.
+
+The ZakBench CLI's `--persist` suite-launch path requires a member or admin
+account. A viewer is rejected before inference starts.
 
 `GET /runs/{id}` returns a run aggregate. Token counts and latency are totals
 across attempts; test counts belong to the individual attempt that produced

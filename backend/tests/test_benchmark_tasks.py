@@ -21,6 +21,7 @@ from api.controllers.auth import get_current_user_controller
 from api.routes import auth as auth_routes
 from api.routes import benchmark as benchmark_routes
 from api.schemas import benchmark as benchmark_schemas
+import worker
 from main import app
 from database.models import Attempt, Base, BenchmarkRun, Evaluation, User
 
@@ -280,15 +281,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual(item.language, benchmark.Language.PYTHON)
         self.assertEqual(item.attempts_used, 1)
 
-    def test_create_run_queues_and_schedules_background_work(self):
-        class BackgroundTasks:
-            def __init__(self):
-                self.calls = []
-
-            def add_task(self, function, *args):
-                self.calls.append((function, args))
-
-        background_tasks = BackgroundTasks()
+    def test_create_run_persists_a_queued_run_for_the_worker(self):
         payload = benchmark_routes.RunCreateRequest(
             task_id="array_sum",
             language=benchmark.Language.PYTHON,
@@ -298,7 +291,6 @@ class BenchmarkRunConversionTests(unittest.TestCase):
 
         response = benchmark_routes.create_run(
             payload,
-            background_tasks,
             self.user,
             self.session,
         )
@@ -307,19 +299,10 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual(response.attempts, [])
         self.assertEqual(response.model_name, "Llama 3.1 8B Instruct")
         self.assertEqual(response.temperature, 0.7)
-        self.assertEqual(len(background_tasks.calls), 1)
-        function, args = background_tasks.calls[0]
-        self.assertIs(function, benchmark.execute_run_in_background)
-        self.assertEqual(args[0], response.id)
+        self.assertEqual(response.queue_position, 1)
         self.assertEqual(
-            args[1:],
-            (
-                "array_sum",
-                benchmark.Language.PYTHON,
-                payload.source,
-                0.7,
-                None,
-            ),
+            self.session.get(BenchmarkRun, response.id).source,
+            payload.source,
         )
 
     def test_run_reads_are_scoped_to_the_current_user(self):
@@ -366,13 +349,14 @@ class BenchmarkRunConversionTests(unittest.TestCase):
             benchmark.get_pair_for_user(self.session, self.user, uuid4())
         self.assertEqual(raised.exception.status_code, 404)
 
-    def test_background_worker_persists_attempts_and_terminal_status(self):
+    def test_worker_persists_attempts_and_terminal_status(self):
         run = benchmark.create_queued_run(
             self.session,
             self.user,
             "array_sum",
             benchmark.Language.PYTHON,
         )
+        run.status = benchmark.RunStatus.RUNNING.value
         self.session.commit()
         result = SimpleNamespace(
             exec_outcome="pass",
@@ -406,12 +390,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
                     "zakbench.runners.run.run_single",
                     return_value=result,
                 ) as run_single:
-            benchmark.execute_run_in_background(
-                run.id,
-                "array_sum",
-                benchmark.Language.PYTHON,
-                "def solve(nums): return sum(nums)",
-            )
+            benchmark.execute_run(run.id)
 
         run_single.assert_called_once()
         self.session.expire_all()
@@ -426,7 +405,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual(saved_attempt.evaluation.exec_outcome, "pass")
         self.assertEqual(saved_attempt.evaluation.tests_passed, 6)
 
-    def test_background_worker_maps_fail_and_timeout_statuses(self):
+    def test_worker_maps_fail_and_timeout_statuses(self):
         for outcome, expected_status in (("fail", "failed"), ("timeout", "timeout")):
             with self.subTest(outcome=outcome):
                 run = benchmark.create_queued_run(
@@ -435,6 +414,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
                     "array_sum",
                     benchmark.Language.PYTHON,
                 )
+                run.status = benchmark.RunStatus.RUNNING.value
                 self.session.commit()
                 result = SimpleNamespace(
                     exec_outcome=outcome,
@@ -466,12 +446,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
                     "zakbench.runners.run.run_single",
                     return_value=result,
                 ):
-                    benchmark.execute_run_in_background(
-                        run.id,
-                        "array_sum",
-                        benchmark.Language.PYTHON,
-                        "def solve(nums): return 0",
-                    )
+                    benchmark.execute_run(run.id)
 
                 self.session.expire_all()
                 self.assertEqual(
@@ -479,13 +454,14 @@ class BenchmarkRunConversionTests(unittest.TestCase):
                     expected_status,
                 )
 
-    def test_background_worker_marks_unexpected_failure_as_error(self):
+    def test_worker_marks_unexpected_failure_as_error(self):
         run = benchmark.create_queued_run(
             self.session,
             self.user,
             "array_sum",
             benchmark.Language.PYTHON,
         )
+        run.status = benchmark.RunStatus.RUNNING.value
         self.session.commit()
 
         with patch.object(
@@ -497,12 +473,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
                     "zakbench.runners.run.run_single",
                     side_effect=RuntimeError("runner unavailable"),
                 ), patch.object(benchmark.logger, "exception"):
-            benchmark.execute_run_in_background(
-                run.id,
-                "array_sum",
-                benchmark.Language.PYTHON,
-                "def solve(nums): return 0",
-            )
+            benchmark.execute_run(run.id)
 
         self.session.expire_all()
         saved_run = self.session.get(BenchmarkRun, run.id)
@@ -513,10 +484,6 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.assertEqual(saved_run.attempts, [])
 
     def test_array_sum_authenticated_run_persists_terminal_result(self):
-        class BackgroundTasks:
-            def add_task(self, function, *args):
-                function(*args)
-
         payload = benchmark_routes.RunCreateRequest(
             task_id="array_sum",
             language=benchmark.Language.PYTHON,
@@ -555,10 +522,16 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         ):
             response = benchmark_routes.create_run(
                 payload,
-                BackgroundTasks(),
                 self.user,
                 self.session,
             )
+
+            with patch.object(
+                worker,
+                "SessionLocal",
+                side_effect=lambda: sessionmaker(bind=self.engine)(),
+            ):
+                worker.process_next_run()
 
         self.session.expire_all()
         persisted = benchmark.get_run_for_user(
@@ -622,14 +595,6 @@ class BenchmarkHttpAuthTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 401)
 
     def test_authenticated_pair_creation_returns_two_queued_runs(self):
-        class BackgroundTasks:
-            def __init__(self):
-                self.tasks = []
-
-            def add_task(self, function, *args):
-                self.tasks.append((function, args))
-
-        background_tasks = BackgroundTasks()
         app.dependency_overrides[get_current_user_controller] = (
             lambda: self.user
         )
@@ -640,7 +605,6 @@ class BenchmarkHttpAuthTests(unittest.TestCase):
                 temperature=0.4,
                 seed=17,
             ),
-            background_tasks,
             self.user,
             self.session,
         )
@@ -661,11 +625,81 @@ class BenchmarkHttpAuthTests(unittest.TestCase):
             {"0.1", None},
         )
         self.assertEqual({run.status for run in runs}, {"queued"})
-        self.assertEqual(len(background_tasks.tasks), 2)
-        self.assertEqual(
-            {args[2] for _, args in background_tasks.tasks},
-            {benchmark.Language.ZAK, benchmark.Language.PYTHON},
+
+    def test_viewer_pair_launch_is_forbidden_but_member_launch_is_accepted(self):
+        viewer = User(
+            email="viewer@example.com",
+            password_hash="hash",
+            role="viewer",
         )
+        self.session.add(viewer)
+        self.session.commit()
+        app.dependency_overrides[get_current_user_controller] = lambda: viewer
+
+        payload = {"task_id": "array_sum"}
+        response = self.client.post("/runs/pair", json=payload)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            response.json()["detail"],
+            "Member or admin role required to launch matched runs",
+        )
+
+        app.dependency_overrides[get_current_user_controller] = lambda: self.user
+        response = self.client.post("/runs/pair", json=payload)
+        self.assertEqual(response.status_code, 202)
+
+    def test_viewer_quota_accepts_twentieth_run_and_rejects_twenty_first(self):
+        viewer = User(
+            email="quota-viewer@example.com",
+            password_hash="hash",
+            role="viewer",
+        )
+        self.session.add(viewer)
+        self.session.commit()
+        app.dependency_overrides[get_current_user_controller] = lambda: viewer
+
+        responses = [
+            self.client.post(
+                "/runs",
+                json={"task_id": "array_sum", "language": "python"},
+            )
+            for _ in range(benchmark.VIEWER_DAILY_RUN_QUOTA)
+        ]
+        rejected = self.client.post(
+            "/runs",
+            json={"task_id": "array_sum", "language": "python"},
+        )
+
+        self.assertEqual([response.status_code for response in responses], [202] * 20)
+        self.assertEqual(rejected.status_code, 429)
+        self.assertIn("resets at", rejected.json()["detail"])
+
+    def test_queued_run_position_decreases_as_prior_run_leaves_queue(self):
+        first = benchmark.create_queued_run(
+            self.session,
+            self.user,
+            "array_sum",
+            benchmark.Language.PYTHON,
+        )
+        second = benchmark.create_queued_run(
+            self.session,
+            self.user,
+            "array_sum",
+            benchmark.Language.PYTHON,
+        )
+        self.session.commit()
+        app.dependency_overrides[get_current_user_controller] = lambda: self.user
+
+        response = self.client.get(f"/runs/{second.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["queue_position"], 2)
+
+        first.status = benchmark.RunStatus.RUNNING.value
+        self.session.commit()
+        response = self.client.get(f"/runs/{second.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["queue_position"], 1)
 
     def test_pair_detail_endpoint_is_owner_scoped(self):
         pair_id, runs = benchmark.create_queued_pair(
@@ -688,6 +722,10 @@ class BenchmarkHttpAuthTests(unittest.TestCase):
         self.assertEqual(
             {item["pair_id"] for item in response.json()},
             {str(pair_id)},
+        )
+        self.assertEqual(
+            [item["queue_position"] for item in response.json()],
+            [1, 2],
         )
 
         other_user = User(email="pair-owner@example.com", password_hash="hash")
