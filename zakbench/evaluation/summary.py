@@ -84,6 +84,10 @@ def _language(runs):
     first_pass = sum(1 for run in runs if run['attempts'] and run['attempts'][0]['exec_outcome'] == 'pass')
     passed = sum(1 for run in runs if run['passed'])
     total_tokens = sum(run['total_tokens'] for run in runs)
+    # finish_reason 'length' means max_tokens cut the answer off. A missing or null finish_reason
+    # (given source, or results from before the field existed) counts as not truncated.
+    truncated = [sum(1 for attempt in run['attempts'] if attempt.get('finish_reason') == 'length')
+                 for run in runs]
     return {
         'runs': len(runs),
         'passed': passed,
@@ -92,6 +96,8 @@ def _language(runs):
         'pass_at_k': _ratio(passed, len(runs)),
         'total_tokens': total_tokens,
         'repair_token_share': _ratio(sum(run['repair_tokens'] for run in runs), total_tokens),
+        'truncated_attempts': sum(truncated),
+        'truncated_runs': sum(1 for count in truncated if count),
     }
 
 
