@@ -239,6 +239,10 @@ function PlaygroundSession({
     function edit(value: string) {
         setEdited(value);
         setCompiled(null);
+        // The last run no longer matches the code on screen. It stays in Recent runs.
+        if (runId !== null) setRunId(null);
+        runMutation.reset();
+        compileMutation.reset();
     }
 
     function reset() {
