@@ -64,13 +64,17 @@ in `by_category`, and a list of `errors`. Each block holds:
 | `pass_at_k` | Share of tasks that passed within `max_attempts` (K), per language |
 | `correctness_gap` | Zak `pass_at_k` minus Python `pass_at_k` |
 | `repair_token_share` | `repair_tokens` divided by `total_tokens`, over all runs of a language |
+| `truncated_attempts` | Attempts whose `finish_reason` is `"length"` (cut off by `max_tokens`), per language |
+| `truncated_runs` | Runs with at least one truncated attempt, per language |
 | `paired.tasks` | Tasks that both languages solved |
 | `paired.<language>` | Mean and median `total_tokens` over the paired tasks only |
 | `paired.token_ratio` | Zak tokens divided by Python tokens, summed over the paired tasks |
 | `paired.token_ratio_by_task` | Zak tokens divided by Python tokens, for each paired task |
 | `solved_by_zak_only`, `solved_by_python_only`, `solved_by_neither` | Tasks left out of the paired token stats |
 
-An error run (a run that crashed the harness) counts as not passed. Rates and
+An error run (a run that crashed the harness) counts as not passed and as not
+truncated. An attempt with a `null` or missing `finish_reason` counts as not
+truncated. Rates and
 ratios have 4 decimal places. A ratio is `null` when there is nothing to
 divide by, for example when no task is paired.
 

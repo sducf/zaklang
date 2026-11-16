@@ -7,9 +7,16 @@ import unittest
 from zakbench.evaluation.summary import summarize
 
 
-def make_run(task_id, language, category, outcomes, total_tokens, repair_tokens):
-    """A stored run record. outcomes is the exec_outcome of each attempt; None makes an error run."""
+def make_run(task_id, language, category, outcomes, total_tokens, repair_tokens, finish_reasons=None):
+    """A stored run record. outcomes is the exec_outcome of each attempt; None makes an error run.
+
+    finish_reasons gives each attempt's finish_reason. Without it, attempts have no finish_reason key,
+    like results stored before the field existed.
+    """
     error = outcomes is None
+    attempts = [] if error else [{'exec_outcome': outcome} for outcome in outcomes]
+    for attempt, reason in zip(attempts, finish_reasons or []):
+        attempt['finish_reason'] = reason
     return {
         'suite': 'dev', 'suite_run_id': 'dev-test', 'pair_id': f'dev-test:{task_id}', 'category': category,
         'task_id': task_id, 'language': language, 'model_id': 'test-model', 'spec_version': '0.1',
@@ -17,21 +24,23 @@ def make_run(task_id, language, category, outcomes, total_tokens, repair_tokens)
         'exec_outcome': 'error' if error else outcomes[-1],
         'passed': not error and outcomes[-1] == 'pass',
         'total_tokens': total_tokens, 'repair_tokens': repair_tokens,
-        'attempts': [] if error else [{'exec_outcome': outcome} for outcome in outcomes],
+        'attempts': attempts,
         **({'error': 'RuntimeError: Docker is not available'} if error else {}),
     }
 
 
 # t1, t2, t5: both solve. t3: only Zak solves. t4: Zak crashes and Python fails, so neither solves.
+# Truncation: t2 Zak's first attempt and two of t4 Python's attempts hit max_tokens ('length').
+# t3 Python's finish_reason is null on every attempt. The other runs have no finish_reason key.
 RUNS = [
     make_run('t1', 'zak', 'arrays', ['pass'], 100, 0),
     make_run('t1', 'python', 'arrays', ['pass'], 200, 0),
-    make_run('t2', 'zak', 'arrays', ['fail', 'pass'], 150, 50),
+    make_run('t2', 'zak', 'arrays', ['fail', 'pass'], 150, 50, ['length', 'stop']),
     make_run('t2', 'python', 'arrays', ['pass'], 100, 0),
     make_run('t3', 'zak', 'strings', ['pass'], 80, 0),
-    make_run('t3', 'python', 'strings', ['fail', 'fail', 'fail'], 300, 200),
+    make_run('t3', 'python', 'strings', ['fail', 'fail', 'fail'], 300, 200, [None, None, None]),
     make_run('t4', 'zak', 'strings', None, 0, 0),
-    make_run('t4', 'python', 'strings', ['fail', 'crash', 'fail'], 360, 240),
+    make_run('t4', 'python', 'strings', ['fail', 'crash', 'fail'], 360, 240, ['length', 'stop', 'length']),
     make_run('t5', 'zak', 'maps', ['pass'], 60, 0),
     make_run('t5', 'python', 'maps', ['pass'], 90, 0),
 ]
@@ -69,6 +78,24 @@ class SummarizeTest(unittest.TestCase):
     def test_repair_token_share(self):
         self.assertEqual(self.overall['languages']['zak']['repair_token_share'], 0.1282)  # 50 / 390
         self.assertEqual(self.overall['languages']['python']['repair_token_share'], 0.419)  # 440 / 1050
+
+    def test_truncated_answers_are_counted(self):
+        zak, python = self.overall['languages']['zak'], self.overall['languages']['python']
+        # Zak: t2 has one 'length' attempt and one 'stop' attempt. The t4 error run counts as 0.
+        self.assertEqual((zak['truncated_attempts'], zak['truncated_runs']), (1, 1))
+        # Python: t4 has two 'length' attempts in one run. t3's null finish_reasons count as 0.
+        self.assertEqual((python['truncated_attempts'], python['truncated_runs']), (2, 1))
+
+    def test_truncated_answers_per_category(self):
+        def counts(category, language):
+            block = self.summary['by_category'][category]['languages'][language]
+            return block['truncated_attempts'], block['truncated_runs']
+        self.assertEqual(counts('arrays', 'zak'), (1, 1))
+        self.assertEqual(counts('arrays', 'python'), (0, 0))
+        # strings holds the Zak error run (t4) and the null finish_reason run (t3 Python).
+        self.assertEqual(counts('strings', 'zak'), (0, 0))
+        self.assertEqual(counts('strings', 'python'), (2, 1))
+        self.assertEqual(counts('maps', 'zak'), (0, 0))
 
     def test_per_category_breakdown(self):
         self.assertEqual(list(self.summary['by_category']), ['arrays', 'maps', 'strings'])
