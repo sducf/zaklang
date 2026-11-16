@@ -127,6 +127,7 @@ class RunResponse(BaseModel):
     started_at: datetime
     completed_at: datetime | None
     status: RunStatus
+    queue_position: int | None = Field(default=None, ge=1)
     attempts_used: int = Field(ge=0)
     # These totals are derived across attempts; per-attempt values stay nested.
     prompt_tokens_total: int = Field(ge=0)

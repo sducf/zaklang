@@ -156,6 +156,11 @@ class BenchmarkRun(Base):
         nullable=True,
     )
 
+    source: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     # Tracks the current public API state of the run. -H
     # Examples: queued, running, passed, failed, error, timeout
     status: Mapped[str] = mapped_column(
