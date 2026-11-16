@@ -23,6 +23,8 @@ class SuiteStore:
         self.user = db.query(User).filter(User.email == _normalize_email(user_email)).first()
         if self.user is None:
             raise ValueError(f'no user has the email {user_email}')
+        if self.user.role not in {'member', 'admin'}:
+            raise ValueError('member or admin role required to launch suites')
         self.suite_run: SuiteRun | None = None
         self.pair_ids: dict[str, UUID] = {}
 

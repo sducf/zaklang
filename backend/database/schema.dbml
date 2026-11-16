@@ -31,6 +31,7 @@ Table benchmark_runs {
 
   status varchar(50) [not null, note: "queued, running, passed, failed, error, or timeout"]
 
+  source text [note: "Optional source provided when the API run was queued"]
   started_at timestamptz [not null]
   completed_at timestamptz
 

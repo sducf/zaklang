@@ -257,6 +257,22 @@ class PersistedSuiteTests(SuiteDatabaseTestCase):
             SuiteStore(self.db, 'nobody@example.com')
         self.assertEqual(self.db.query(func.count(SuiteRun.id)).scalar(), 0)
 
+    def test_viewers_cannot_open_a_suite_store(self):
+        viewer = User(
+            email='viewer-suite@example.com',
+            password_hash='hash',
+            role='viewer',
+        )
+        self.db.add(viewer)
+        self.db.commit()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            '^member or admin role required to launch suites$',
+        ):
+            SuiteStore(self.db, viewer.email)
+        self.assertEqual(self.db.query(func.count(SuiteRun.id)).scalar(), 0)
+
 
 class PersistCliTests(SuiteDatabaseTestCase):
     """Run the real CLI and its real open_store() against the test database."""
@@ -294,6 +310,28 @@ class PersistCliTests(SuiteDatabaseTestCase):
 
         self.assertEqual((code, calls), (1, 0))
         self.assertEqual(stderr, 'error: no user has the email nobody@example.com\n')
+        self.assertEqual(self.counts(), (0, 0, 0))
+
+    def test_viewer_cannot_launch_persisted_suite_before_inference(self):
+        viewer = User(
+            email='viewer-cli@example.com',
+            password_hash='hash',
+            role='viewer',
+        )
+        self.db.add(viewer)
+        self.db.commit()
+
+        code, calls, stderr = self.cli(
+            '--persist',
+            '--user-email',
+            viewer.email,
+        )
+
+        self.assertEqual((code, calls), (1, 0))
+        self.assertEqual(
+            stderr,
+            'error: member or admin role required to launch suites\n',
+        )
         self.assertEqual(self.counts(), (0, 0, 0))
 
     def test_persist_with_an_unreachable_database_stops_without_printing_the_url(self):
