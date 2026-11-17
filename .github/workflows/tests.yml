@@ -11,6 +11,8 @@
 #               for f in zakbench/tasks/*/task.json zakbench/tasks/*/hidden_tests.json; do python -m json.tool "$f" > /dev/null || exit 1; done
 #               cargo run --release --manifest-path zakc/Cargo.toml -- --emit check zakbench/tasks
 #               python -m py_compile zakbench/tasks/*/reference.py
+#               python -m unittest discover -s zakbench/tasks
+#               python zakbench/tasks/check_references.py
 #   sandbox:    pip install -r zakc/requirements-dev.txt
 #               python -m pytest sandbox/tests
 #   backend:    cd backend && pip install -r requirements.txt   (builds ../zakc, so it needs Rust)
@@ -79,6 +81,10 @@ jobs:
         run: cargo run --release --manifest-path zakc/Cargo.toml -- --emit check zakbench/tasks
       - name: Check that every reference.py compiles
         run: python -m py_compile zakbench/tasks/*/reference.py
+      - name: Run the reference checker tests
+        run: python -m unittest discover -s zakbench/tasks
+      - name: Check that every reference matches its task.json and passes its hidden tests
+        run: python zakbench/tasks/check_references.py
 
   sandbox:
     runs-on: ubuntu-latest

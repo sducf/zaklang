@@ -55,8 +55,23 @@ class CheckTaskTest(unittest.TestCase):
 
     def test_zak_wrong_function_name(self):
         ok, line = self.check(zak='@other(n:I)I{^n*2}\n')
-        self.assertFalse(ok)
-        self.assertIn('reference.zak crashed or does not define the function', line)
+        self.assertEqual((ok, line), (False, 'double: FAIL reference.zak does not define solve at the top level'))
+
+    def test_zak_nested_function_is_not_top_level(self):
+        ok, line = self.check(zak='@other(n:I)I{@solve(n:I)I{^n*2}^solve(n)}\n')
+        self.assertEqual((ok, line), (False, 'double: FAIL reference.zak does not define solve at the top level'))
+
+    def test_zak_wrong_parameter_names(self):
+        ok, line = self.check(zak='@solve(x:I)I{^x*2}\n')
+        self.assertEqual((ok, line), (False, 'double: FAIL reference.zak parameters are (x) but task.json inputs are (n)'))
+
+    def test_python_wrong_function_name(self):
+        ok, line = self.check(python='def other(n):\n    return n * 2\n')
+        self.assertEqual((ok, line), (False, 'double: FAIL reference.py does not define solve at the top level'))
+
+    def test_python_wrong_parameter_names(self):
+        ok, line = self.check(python='def solve(x):\n    return x * 2\n')
+        self.assertEqual((ok, line), (False, 'double: FAIL reference.py parameters are (x) but task.json inputs are (n)'))
 
     def test_missing_zak_reference(self):
         ok, line = self.check(zak=None)
