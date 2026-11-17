@@ -69,7 +69,7 @@ def generate(messages, *, seed, max_tokens, temperature=0.0, timeout_s=120.0):
     }
     request = urllib.request.Request(
         f'{base_url}/v1/chat/completions', data=json.dumps(body).encode('utf-8'),
-        headers={'Content-Type': 'application/json'}, method='POST')
+        headers={'Content-Type': 'application/json','Connection': 'close',}, method='POST')
 
     for retries, delay in enumerate((*RETRY_DELAYS_S, None)):
         started = time.monotonic()
