@@ -6,6 +6,7 @@ import contextlib
 import csv
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -157,6 +158,91 @@ class SuiteCliTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(io.StringIO()) as stderr:
             self.assertEqual(main(['summarize', tmp]), 1)
         self.assertIn('no run results', stderr.getvalue())
+
+
+def write_task(root, task_id, category='arrays'):
+    """Write a minimal task folder (sum of an array) under root."""
+    folder = Path(root) / task_id
+    folder.mkdir()
+    task = {'id': task_id, 'title': 'Sum', 'category': category, 'prompt': 'Return the sum of nums.',
+            'functionName': 'solve', 'inputs': [{'name': 'nums', 'type': 'integer[]'}], 'outputType': 'integer'}
+    (folder / 'task.json').write_text(json.dumps(task), encoding='utf-8')
+    cases = [{'inputs': [[n, n]], 'expected': 2 * n} for n in range(6)]
+    (folder / 'hidden_tests.json').write_text(json.dumps(cases), encoding='utf-8')
+
+
+class HeldOutSuiteTest(unittest.TestCase):
+    def setUp(self):
+        self.results = tempfile.TemporaryDirectory()
+        self.heldout = tempfile.TemporaryDirectory()
+        self.addCleanup(self.results.cleanup)
+        self.addCleanup(self.heldout.cleanup)
+
+    def run_cli(self, environ):
+        generate = Mock(side_effect=lambda messages, **kwargs: reply(
+            GOOD_ZAK if '@' in messages[0]['content'] else GOOD_PYTHON))
+        execute = Mock(return_value=sandbox('pass'))
+        with patch.dict(os.environ, environ), \
+                patch.object(run, 'generate', generate), \
+                patch.object(runner, '_execute', execute), \
+                contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()) as stderr:
+            if 'SANDBOX_WORKER_URL' not in environ:
+                os.environ.pop('SANDBOX_WORKER_URL', None)
+            if suite.HELDOUT_ENV not in environ:
+                os.environ.pop(suite.HELDOUT_ENV, None)
+            code = main(['run', '--suite', 'heldout', '--lang', 'both'], results_dir=self.results.name)
+        return code, stderr.getvalue(), generate, execute
+
+    def test_unset_folder_stops_before_inference(self):
+        code, stderr, generate, _ = self.run_cli({})
+
+        self.assertEqual(code, 1)
+        self.assertIn(suite.HELDOUT_ENV, stderr)
+        generate.assert_not_called()
+        self.assertEqual(list(Path(self.results.name).iterdir()), [])
+
+    def test_missing_folder_stops_before_inference(self):
+        code, stderr, generate, _ = self.run_cli({suite.HELDOUT_ENV: str(Path(self.heldout.name) / 'nope')})
+
+        self.assertEqual(code, 1)
+        self.assertIn(suite.HELDOUT_ENV, stderr)
+        generate.assert_not_called()
+
+    def test_runs_every_held_out_task_in_both_languages(self):
+        write_task(self.heldout.name, 'held_sum')
+        write_task(self.heldout.name, 'held_total', category='math')
+
+        # The remote worker only has the dev tasks, so held-out tasks must still run in local Docker.
+        code, _, _, execute = self.run_cli({suite.HELDOUT_ENV: self.heldout.name,
+                                            'SANDBOX_WORKER_URL': 'http://remote.invalid'})
+
+        self.assertEqual(code, 0)
+        [folder] = Path(self.results.name).iterdir()
+        self.assertTrue(folder.name.startswith('heldout-'))
+        records = [json.loads((folder / f'{task_id}-{language}.json').read_text())
+                   for task_id in ('held_sum', 'held_total') for language in ('zak', 'python')]
+        self.assertEqual([(r['task_id'], r['language'], r['suite'], r['exec_outcome']) for r in records], [
+            ('held_sum', 'zak', 'heldout', 'pass'), ('held_sum', 'python', 'heldout', 'pass'),
+            ('held_total', 'zak', 'heldout', 'pass'), ('held_total', 'python', 'heldout', 'pass')])
+        self.assertEqual(records[2]['category'], 'math')
+        # The sandbox got each task's hidden tests from the held-out folder, not zakbench/tasks/.
+        heldout = Path(self.heldout.name).resolve()
+        self.assertEqual(execute.call_count, 4)
+        for call in execute.call_args_list:
+            self.assertEqual(call.args[2].parent.parent, heldout)
+            self.assertEqual(call.args[2].name, 'hidden_tests.json')
+
+    def test_task_id_shared_with_dev_is_rejected_before_inference(self):
+        write_task(self.heldout.name, 'held_sum')
+        write_task(self.heldout.name, 'array_sum')
+
+        with patch.dict(os.environ, {suite.HELDOUT_ENV: self.heldout.name}), \
+                patch.object(run, 'generate') as generate, \
+                self.assertRaisesRegex(ValueError, '^heldout task ids also in the dev suite: array_sum$'):
+            suite.run_suite('heldout', 'test-model', 0, '1', '0.1', results_dir=self.results.name)
+        generate.assert_not_called()
+        self.assertEqual(list(Path(self.results.name).iterdir()), [])
 
 
 if __name__ == '__main__':

@@ -13,7 +13,7 @@ from pathlib import Path
 from zakbench.evaluation.evaluator import EvalResult, evaluate as evaluate_local
 from zakbench.evaluation.metrics import Attempt, compute_run_metrics
 from zakbench.runners.inference import generate
-from zakbench.runners.prompt import PROMPT_VERSION, build_prompt, extract_code, load_task, repair_prompt
+from zakbench.runners.prompt import PROMPT_VERSION, TASKS, build_prompt, extract_code, load_task, repair_prompt
 from zakbench.evaluation.remote import evaluate_remote
 
 TEMPERATURE = 0.0
@@ -51,8 +51,13 @@ class RunResult:
     attempts: list[dict]
 
 
-def evaluate(source, task_id, language="python"):
-    """Select local Docker or the configured remote worker."""
+def evaluate(source, task_id, language="python", tasks_root=TASKS):
+    """Select local Docker or the configured remote worker.
+
+    The remote worker only has the dev tasks, so tasks from another folder are evaluated locally.
+    """
+    if Path(tasks_root) != TASKS:
+        return evaluate_local(source, task_id, language, tasks_root=tasks_root)
 
     if os.getenv("SANDBOX_WORKER_URL"):
         return evaluate_remote(source, task_id, language)
@@ -70,9 +75,11 @@ def run_single(
     source=None,
     temperature=None,
     max_tokens=None,
+    tasks_root=TASKS,
 ):
     """Run one task in one language for up to max_attempts and return the result.
 
+    The task and its hidden tests are read from tasks_root (the held-out suite uses its own folder).
     When source is given, attempt 1 evaluates it instead of generating, and no repairs run.
     Raises ValueError for bad arguments, InferenceError when the model server fails,
     and RuntimeError when Docker is unavailable.
@@ -85,7 +92,7 @@ def run_single(
         temperature = TEMPERATURE
     if max_tokens is None:
         max_tokens = MAX_TOKENS
-    task = load_task(task_id)
+    task = load_task(task_id, tasks_root)
     messages = [{'role': 'user', 'content': build_prompt(task, language, spec_version)}]
 
     attempts = []
@@ -107,7 +114,7 @@ def run_single(
             retries = generation.retries
 
         if code:
-            evaluation = evaluate(code, task_id, language)
+            evaluation = evaluate(code, task_id, language, tasks_root)
         else:
             evaluation = EvalResult('not_run', 0, 0, [], 'The response contained no code.', None)
 

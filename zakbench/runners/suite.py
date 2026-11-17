@@ -10,13 +10,16 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 import io
 import json
+import os
 from pathlib import Path
 
 from zakbench.evaluation.summary import LANGUAGES, summarize
 from zakbench.runners import run
 from zakbench.runners.prompt import TASKS, load_task
 
-SUITES = ('dev',)
+SUITES = ('dev', 'heldout')
+# Held-out tasks live outside the repository so they are never seen while tuning the prompt and spec.
+HELDOUT_ENV = 'ZAKBENCH_HELDOUT_DIR'
 CSV_COLUMNS = ('suite_run_id', 'pair_id', 'task_id', 'category', 'language', 'model_id', 'spec_version',
                'prompt_version', 'seed', 'temperature', 'max_tokens', 'max_attempts', 'exec_outcome',
                'passed', 'first_attempt_passed', 'attempts_used', 'prompt_tokens_total',
@@ -32,11 +35,34 @@ class SuiteResult:
     summary: dict
 
 
-def suite_tasks(suite):
-    """Return the task ids in a suite. The dev suite is every task folder."""
+def suite_root(suite):
+    """Return the folder a suite's tasks are read from.
+
+    The dev suite is zakbench/tasks/. The held-out suite is the folder in ZAKBENCH_HELDOUT_DIR.
+    """
     if suite not in SUITES:
         raise ValueError(f'unknown suite: {suite}')
-    return sorted(path.parent.name for path in TASKS.glob('*/task.json'))
+    if suite == 'dev':
+        return TASKS
+    folder = os.getenv(HELDOUT_ENV)
+    if not folder:
+        raise ValueError(f'{HELDOUT_ENV} is not set; point it at the held-out task folder')
+    if not Path(folder).is_dir():
+        raise ValueError(f'{HELDOUT_ENV} is not a folder: {folder}')
+    return Path(folder)
+
+
+def suite_tasks(suite):
+    """Return the task ids in a suite: every folder with a task.json in the suite's root.
+
+    A held-out task id that is also a dev task id is an error, so it cannot shadow the dev task.
+    """
+    task_ids = sorted(path.parent.name for path in suite_root(suite).glob('*/task.json'))
+    if suite != 'dev':
+        shared = sorted(set(task_ids) & set(suite_tasks('dev')))
+        if shared:
+            raise ValueError(f'{suite} task ids also in the dev suite: {", ".join(shared)}')
+    return task_ids
 
 
 def run_suite(suite, model_id, seed, prompt_version, spec_version, max_attempts=3, task_ids=None,
@@ -48,6 +74,7 @@ def run_suite(suite, model_id, seed, prompt_version, spec_version, max_attempts=
     Raises ValueError for an unknown suite or task. A run that crashes is stored as an error run.
     """
     available = suite_tasks(suite)
+    tasks_root = suite_root(suite)
     task_ids = available if task_ids is None else list(task_ids)
     for task_id in task_ids:
         if task_id not in available:
@@ -63,9 +90,10 @@ def run_suite(suite, model_id, seed, prompt_version, spec_version, max_attempts=
     runs = []
     try:
         for task_id in task_ids:
-            category = load_task(task_id)['category']
+            category = load_task(task_id, tasks_root)['category']
             for language in LANGUAGES:
-                record = _run_one(task_id, language, model_id, spec_version, prompt_version, seed, max_attempts)
+                record = _run_one(task_id, language, model_id, spec_version, prompt_version, seed, max_attempts,
+                                  tasks_root)
                 record.update(suite=suite, suite_run_id=suite_run_id, pair_id=f'{suite_run_id}:{task_id}',
                               category=category)
                 # Write each run at once, so a stopped suite keeps the runs that finished.
@@ -85,10 +113,10 @@ def run_suite(suite, model_id, seed, prompt_version, spec_version, max_attempts=
     return result
 
 
-def _run_one(task_id, language, model_id, spec_version, prompt_version, seed, max_attempts):
+def _run_one(task_id, language, model_id, spec_version, prompt_version, seed, max_attempts, tasks_root=TASKS):
     try:
         return asdict(run.run_single(task_id, language, model_id, spec_version, prompt_version, seed,
-                                     max_attempts))
+                                     max_attempts, tasks_root=tasks_root))
     except Exception as error:  # One crashed run must not stop the other tasks.
         return {
             'task_id': task_id, 'language': language, 'model_id': model_id, 'spec_version': spec_version,

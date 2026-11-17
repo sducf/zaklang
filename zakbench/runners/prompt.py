@@ -22,9 +22,9 @@ FENCE = re.compile(r'```[^\n]*\n(.*?)```', re.DOTALL)
 LANGUAGE_NAMES = {'zak': 'Zak', 'python': 'Python'}
 
 
-def load_task(task_id):
-    """Read the model-visible task definition. Raises ValueError for an unknown id."""
-    path = TASKS / task_id / 'task.json'
+def load_task(task_id, tasks_root=TASKS):
+    """Read the model-visible task definition from tasks_root. Raises ValueError for an unknown id."""
+    path = Path(tasks_root) / task_id / 'task.json'
     if not TASK_ID.fullmatch(task_id) or not path.is_file():
         raise ValueError(f'unknown task: {task_id}')
     return json.loads(path.read_text(encoding='utf-8'))

@@ -2,6 +2,7 @@
 
     python3 -m zakbench run --task array_sum --lang zak
     python3 -m zakbench run --suite dev --lang both --model <id> --seed 0
+    python3 -m zakbench run --suite heldout --lang both   (needs ZAKBENCH_HELDOUT_DIR)
     python3 -m zakbench run --suite dev --lang both --persist --user-email <email>   (also needs DATABASE_URL)
     python3 -m zakbench summarize zakbench/results/<suite_run_id>/
     python3 -m zakbench break-even zakbench/results/<suite_run_id>/ --csv zakbench/reports/break-even-v0.1.csv

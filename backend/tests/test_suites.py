@@ -49,7 +49,8 @@ OUTCOMES = {
 }
 
 
-def fake_run_single(task_id, language, model_id, spec_version, prompt_version, seed, max_attempts=3):
+def fake_run_single(task_id, language, model_id, spec_version, prompt_version, seed, max_attempts=3,
+                    tasks_root=None):
     # Tasks outside OUTCOMES pass on the first attempt, for CLI runs over the whole dev suite.
     attempts = OUTCOMES.get((task_id, language), [attempt(1, 'pass', 10, 5)])
     if attempts is None:
