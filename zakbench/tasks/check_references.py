@@ -12,8 +12,10 @@ so the hidden tests do not end up in logs.
 Exit code 0 means every task passed every check; 1 means at least one failed.
 """
 
+import ast
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -26,6 +28,9 @@ TIMEOUT_S = 5
 MIN_CASES = 5
 MAX_CASES = 12
 TASK_FIELDS = {'id', 'title', 'category', 'prompt', 'functionName', 'inputs', 'outputType'}
+# Zak types contain no commas or parentheses, so a header's parameter list is everything up to ")".
+ZAK_STRING = re.compile(r'"(?:\\.|[^"\\])*"')
+ZAK_HEADER = re.compile(r'@([a-z_][a-z0-9_]*)\(([^)]*)\)')
 
 # Runs in the child process. Prints the indices of failing cases, never their values.
 CHILD = '''import json
@@ -73,7 +78,52 @@ def structure_problems(folder):
     for name in ('reference.py', 'reference.zak'):
         if not (folder / name).is_file():
             problems.append(f'{name} is missing')
+    if not problems:
+        problems += signature_problems(folder, task)
     return problems
+
+
+def signature_problems(folder, task):
+    """Check that both references define functionName at the top level with the task's input names in order.
+
+    reference.py is read with ast and reference.zak from its source; neither is run.
+    The transpiled Zak cannot be checked here because zakc renames parameters.
+    """
+    name = task['functionName']
+    expected = [item.get('name') for item in task['inputs']]
+    problems = []
+
+    try:
+        tree = ast.parse((folder / 'reference.py').read_text(encoding='utf-8'))
+    except SyntaxError:
+        problems.append('reference.py does not parse')
+    else:
+        functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name]
+        if not functions:
+            problems.append(f'reference.py does not define {name} at the top level')
+        else:
+            arguments = functions[-1].args
+            problems += _parameter_problem('reference.py', [a.arg for a in arguments.posonlyargs + arguments.args],
+                                           expected)
+
+    # Drop string literals so braces or "@" inside them cannot confuse the header search.
+    source = ZAK_STRING.sub('""', (folder / 'reference.zak').read_text(encoding='utf-8'))
+    source = re.sub(r'\s+', '', source)
+    headers = [match for match in ZAK_HEADER.finditer(source)
+               if match.group(1) == name and source.count('{', 0, match.start()) == source.count('}', 0, match.start())]
+    if not headers:
+        problems.append(f'reference.zak does not define {name} at the top level')
+    else:
+        parameters = headers[0].group(2)
+        problems += _parameter_problem(
+            'reference.zak', [p.split(':', 1)[0] for p in parameters.split(',')] if parameters else [], expected)
+    return problems
+
+
+def _parameter_problem(label, actual, expected):
+    if actual == expected:
+        return []
+    return [f'{label} parameters are ({", ".join(actual)}) but task.json inputs are ({", ".join(map(str, expected))})']
 
 
 def run_solution(folder, name, source):

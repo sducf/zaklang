@@ -178,7 +178,10 @@ python3 -m unittest discover -s zakbench/tasks   # tests for the checker itself
 For every task folder it checks that both JSON files parse, `task.json` has
 every field and an `id` matching the folder, `hidden_tests.json` has 5 to 12
 cases whose `inputs` match the task's arity, and both `reference.py` and
-`reference.zak` exist. It runs `reference.py` as is, and compiles and
+`reference.zak` exist. Both references must define `functionName` at the top
+level with parameters named like the `task.json` inputs, in order. This is read
+from `reference.py` with `ast` and from the `reference.zak` source, since
+`zakc` renames parameters in its Python output. It runs `reference.py` as is, and compiles and
 transpiles `reference.zak` to Python first with `zakc.zak_transpile`. Each runs in a fresh, isolated,
 time-limited Python subprocess that compares each result to `expected` by
 value. A Zak compile failure prints the first compiler error as
@@ -187,6 +190,7 @@ value. A Zak compile failure prints the first compiler error as
 It prints one `PASS` or `FAIL` line per task with the passing case counts
 for each language, for example `array_sum: PASS py 6/6, zak 6/6`, and exits 0
 only if every task passes. Failures name the case number but never print hidden-test values.
+The `zakbench` CI job runs the checker and its tests on every pull request.
 
 ---
 
