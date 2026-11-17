@@ -4,7 +4,8 @@ import { Link, useSearchParams } from "react-router";
 import ArtifactDialog from "@/components/ArtifactDialog";
 import Icon from "@/components/Icon";
 import StatusBadge from "@/components/StatusBadge";
-import { ApiError } from "@/lib/api";
+import ExplorerNav from "@/components/explorer/ExplorerNav";
+import { RunFacts } from "@/components/explorer/RunFacts";
 import {
     runQueryOptions,
     terminalStatuses,
@@ -12,13 +13,8 @@ import {
     useRuns,
     useTasks,
 } from "@/lib/benchmark";
-import type {
-    Attempt,
-    CompilerError,
-    Language,
-    Run,
-    RunStatus,
-} from "@/lib/benchmark";
+import type { Language, Run, RunStatus } from "@/lib/benchmark";
+import { errorText, formatDate, languageName } from "@/lib/format";
 
 const pageSize = 25;
 const languages: Language[] = ["zak", "python"];
@@ -30,32 +26,6 @@ const outcomes: RunStatus[] = [
     "running",
     "queued",
 ];
-
-/** API errors are shown as returned, prefixed with the HTTP status. */
-function errorText(error: unknown) {
-    if (error instanceof ApiError) return `HTTP ${error.status}: ${error.message}`;
-    return error instanceof Error ? error.message : String(error);
-}
-
-function compilerErrorText(error: CompilerError) {
-    return `${error.code} ${error.line}:${error.col} ${error.message}`;
-}
-
-function languageName(language: Language) {
-    return language === "zak" ? "Zak" : "Python";
-}
-
-function formatDate(iso: string | null) {
-    return iso ? new Date(iso).toLocaleString() : "–";
-}
-
-function formatCount(value: number | null) {
-    return value === null ? "–" : value.toLocaleString();
-}
-
-function formatLatency(ms: number | null) {
-    return ms === null ? "–" : `${(ms / 1000).toFixed(2)} s`;
-}
 
 function downloadCsv(rows: string[][], filename: string) {
     const csv = rows
@@ -212,27 +182,7 @@ export default function ExplorerPage() {
 
     return (
         <>
-            <div className="mb-10 flex items-end justify-between gap-6 max-md:mb-6 max-md:flex-col max-md:items-stretch">
-                <div>
-                    <h1 className="text-display font-semibold tracking-tight max-md:text-title">
-                        Explorer
-                    </h1>
-                    <p className="mt-2 text-base text-text-secondary">
-                        Every run you made, every attempt, every token.
-                    </p>
-                </div>
-                <Link
-                    className="btn btn-primary"
-                    to={
-                        taskId
-                            ? `/playground?task=${encodeURIComponent(taskId)}`
-                            : "/playground"
-                    }
-                >
-                    <Icon name="plus" />
-                    New playground run
-                </Link>
-            </div>
+            <ExplorerNav taskId={taskId} />
             <div className="mb-4 flex items-end justify-between gap-4 max-md:flex-col max-md:items-stretch">
                 <div>
                     <h2 className="text-xl font-semibold tracking-tight">
@@ -242,15 +192,28 @@ export default function ExplorerPage() {
                         Open a run to see the source and accounting behind it.
                     </p>
                 </div>
-                <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={exportCsv}
-                    disabled={!filtered.length || exporting}
-                >
-                    <Icon name="download" />
-                    {exporting ? "Exporting…" : "Export CSV"}
-                </button>
+                <div className="flex gap-2 max-md:flex-col">
+                    <Link
+                        className="btn btn-secondary"
+                        to={
+                            taskId
+                                ? `/playground?task=${encodeURIComponent(taskId)}`
+                                : "/playground"
+                        }
+                    >
+                        <Icon name="plus" />
+                        New playground run
+                    </Link>
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={exportCsv}
+                        disabled={!filtered.length || exporting}
+                    >
+                        <Icon name="download" />
+                        {exporting ? "Exporting…" : "Export CSV"}
+                    </button>
+                </div>
             </div>
             {exportError !== null && (
                 <p className="mb-3 text-text-error" role="alert">
@@ -375,6 +338,14 @@ export default function ExplorerPage() {
                                             </span>
                                         </span>
                                     </button>
+                                    {run.pair_id && (
+                                        <Link
+                                            className="mx-4 mb-3 inline-flex rounded-sm text-text-action hover:text-text-action-hover"
+                                            to={`/explorer/pairs/${encodeURIComponent(run.pair_id)}`}
+                                        >
+                                            Compare with its pair
+                                        </Link>
+                                    )}
                                 </li>
                             );
                         })}
@@ -382,7 +353,7 @@ export default function ExplorerPage() {
                 )}
                 {visible.length > 0 && (
                     <div className="relative overflow-x-auto max-md:hidden">
-                        <table className="w-full min-w-[760px] border-collapse">
+                        <table className="w-full min-w-[840px] border-collapse">
                             <thead className="border-b border-border-default bg-surface-default">
                                 <tr>
                                     <th className={head}>Run</th>
@@ -396,6 +367,7 @@ export default function ExplorerPage() {
                                         Total tokens
                                     </th>
                                     <th className={head}>Date</th>
+                                    <th className={head}>Pair</th>
                                     <th className={head}>
                                         <span className="sr-only">Details</span>
                                     </th>
@@ -482,6 +454,20 @@ export default function ExplorerPage() {
                                                     : pending
                                                       ? "…"
                                                       : "!"}
+                                            </td>
+                                            <td className={cell}>
+                                                {run.pair_id ? (
+                                                    <Link
+                                                        className="rounded-sm text-text-action hover:text-text-action-hover"
+                                                        to={`/explorer/pairs/${encodeURIComponent(run.pair_id)}`}
+                                                    >
+                                                        Compare
+                                                    </Link>
+                                                ) : (
+                                                    <span className="text-text-tertiary">
+                                                        –
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className={`${cell} text-right`}>
                                                 <button
@@ -602,190 +588,5 @@ function RunDetail({
                 <RunFacts run={run} />
             )}
         </ArtifactDialog>
-    );
-}
-
-function RunFacts({ run }: { run: Run }) {
-    return (
-        <>
-            <dl className="facts">
-                <div>
-                    <dt>Task</dt>
-                    <dd>{run.task_id}</dd>
-                </div>
-                <div>
-                    <dt>Status</dt>
-                    <dd>
-                        <StatusBadge status={run.status} />
-                    </dd>
-                </div>
-                <div>
-                    <dt>Model / temperature</dt>
-                    <dd>
-                        {run.model_name} / {run.temperature ?? "–"}
-                    </dd>
-                </div>
-                <div>
-                    <dt>Attempts used</dt>
-                    <dd>{run.attempts_used}</dd>
-                </div>
-                <div>
-                    <dt>Prompt / completion / total tokens</dt>
-                    <dd>
-                        {run.prompt_tokens_total.toLocaleString()} /{" "}
-                        {run.completion_tokens_total.toLocaleString()} /{" "}
-                        {run.total_tokens.toLocaleString()}
-                    </dd>
-                </div>
-                <div>
-                    <dt>Total latency</dt>
-                    <dd>{formatLatency(run.latency_ms_total)}</dd>
-                </div>
-                <div>
-                    <dt>Started / completed</dt>
-                    <dd>
-                        {formatDate(run.started_at)} /{" "}
-                        {formatDate(run.completed_at)}
-                    </dd>
-                </div>
-            </dl>
-            {run.attempts.length === 0 && (
-                <p className="text-text-secondary">No attempts recorded yet.</p>
-            )}
-            {run.attempts.map((attempt) => (
-                <AttemptCard
-                    attempt={attempt}
-                    language={run.language}
-                    key={attempt.index}
-                />
-            ))}
-        </>
-    );
-}
-
-function AttemptCard({
-    attempt,
-    language,
-}: {
-    attempt: Attempt;
-    language: Language;
-}) {
-    const [completionOpen, setCompletionOpen] = useState(false);
-    const [promptNote, setPromptNote] = useState(false);
-    const compile =
-        attempt.compile_ok === null
-            ? language === "zak"
-                ? "not compiled"
-                : "n/a"
-            : attempt.compile_ok
-              ? "ok"
-              : "failed";
-    const tests =
-        attempt.tests_total === null
-            ? "–"
-            : `${attempt.tests_passed ?? 0} / ${attempt.tests_total}`;
-    const numberLink =
-        "rounded-sm text-text-action hover:text-text-action-hover";
-
-    return (
-        <section className="flex flex-col gap-3 rounded-lg border border-border-default p-4">
-            <h3 className="flex items-center justify-between gap-3 text-base font-semibold">
-                Attempt {attempt.index}
-                <span className="text-sm font-normal text-text-secondary">
-                    {attempt.exec_outcome ?? "not run"}
-                </span>
-            </h3>
-            <dl className="facts">
-                <div>
-                    <dt>Prompt tokens</dt>
-                    <dd>
-                        <button
-                            type="button"
-                            className={numberLink}
-                            onClick={() => setPromptNote(!promptNote)}
-                        >
-                            {formatCount(attempt.prompt_tokens)}
-                        </button>
-                    </dd>
-                </div>
-                <div>
-                    <dt>Completion tokens</dt>
-                    <dd>
-                        <button
-                            type="button"
-                            className={numberLink}
-                            onClick={() => setCompletionOpen(true)}
-                        >
-                            {formatCount(attempt.completion_tokens)}
-                        </button>
-                    </dd>
-                </div>
-                <div>
-                    <dt>Total tokens</dt>
-                    <dd>{formatCount(attempt.total_tokens)}</dd>
-                </div>
-                <div>
-                    <dt>Latency</dt>
-                    <dd>{formatLatency(attempt.latency_ms)}</dd>
-                </div>
-                <div>
-                    <dt>Compile</dt>
-                    <dd>{compile}</dd>
-                </div>
-                <div>
-                    <dt>Tests passed</dt>
-                    <dd>{tests}</dd>
-                </div>
-                <div>
-                    <dt>Execution outcome</dt>
-                    <dd>{attempt.exec_outcome ?? "–"}</dd>
-                </div>
-            </dl>
-            {promptNote && (
-                <p className="text-text-secondary">
-                    The prompt text is not in the API response yet, so it
-                    can't be shown here.
-                </p>
-            )}
-            {attempt.compile_errors.length > 0 && (
-                <ul className="flex flex-col gap-1 font-mono text-[13px] leading-5">
-                    {attempt.compile_errors.map((error, index) => (
-                        <li className="text-text-error" key={index}>
-                            {compilerErrorText(error)}
-                        </li>
-                    ))}
-                </ul>
-            )}
-            <details
-                className="group"
-                open={completionOpen}
-                onToggle={(event) =>
-                    setCompletionOpen(event.currentTarget.open)
-                }
-            >
-                <summary className="flex h-11 cursor-pointer items-center gap-2 font-medium [&::-webkit-details-marker]:hidden">
-                    <Icon
-                        name="chevron-right"
-                        className="transition-transform group-open:rotate-90"
-                    />
-                    Completion
-                </summary>
-                <pre className="code-block">
-                    {attempt.completion_text || "(empty)"}
-                </pre>
-            </details>
-            {attempt.transpiled_python !== null && (
-                <details className="group">
-                    <summary className="flex h-11 cursor-pointer items-center gap-2 font-medium [&::-webkit-details-marker]:hidden">
-                        <Icon
-                            name="chevron-right"
-                            className="transition-transform group-open:rotate-90"
-                        />
-                        Transpiled Python
-                    </summary>
-                    <pre className="code-block">{attempt.transpiled_python}</pre>
-                </details>
-            )}
-        </section>
     );
 }
