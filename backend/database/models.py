@@ -35,10 +35,12 @@ class User(Base):
 
     # Application authorization role.
     # Allowed values are viewer, member, and admin. -H
+    # New signups start as viewer; promote team members by hand.
     role: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-        default="member",
+        default="viewer",
+        server_default="viewer",
     )
 
     created_at: Mapped[datetime] = mapped_column(
