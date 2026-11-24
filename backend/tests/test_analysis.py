@@ -7,6 +7,7 @@ import contextlib
 import io
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -16,6 +17,8 @@ import duckdb
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from database.models import Attempt, Base, BenchmarkRun, Evaluation, SuiteRun, User
 from zakbench.analysis.export import SCHEMAS, export_suite
