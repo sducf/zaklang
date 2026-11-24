@@ -6,6 +6,7 @@ psycopg[binary]
 pydantic
 alembic
 python-dotenv
+duckdb
 pwdlib[argon2]
 PyJWT
 # Rust Zak compiler (PyO3). The path is relative to backend/, where this file is installed from;
