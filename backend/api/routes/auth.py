@@ -9,6 +9,7 @@ from api.controllers.auth import (
     refresh_controller,
     register_controller,
 )
+from api.limits import rate_limit
 from api.schemas.auth import (
     LoginRequest,
     RefreshRequest,
@@ -25,6 +26,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     "/register",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(rate_limit("register"))],
 )
 def register(
     payload: LoginRequest,
@@ -33,7 +35,11 @@ def register(
     return register_controller(payload, db)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit("login"))],
+)
 def login(
     payload: LoginRequest,
     db: Session = Depends(get_db),

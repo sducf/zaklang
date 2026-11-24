@@ -172,7 +172,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         self.session = sessionmaker(bind=self.engine)()
         self.addCleanup(self.engine.dispose)
         self.addCleanup(self.session.close)
-        self.user = User(email="user@example.com", password_hash="hash")
+        self.user = User(email="user@example.com", password_hash="hash", role="member")
         self.session.add(self.user)
         self.session.flush()
         self.other_user = User(email="other@example.com", password_hash="hash")
@@ -289,11 +289,12 @@ class BenchmarkRunConversionTests(unittest.TestCase):
             source="def solve(nums): return sum(nums)",
         )
 
-        response = benchmark_routes.create_run(
-            payload,
-            self.user,
-            self.session,
-        )
+        with patch("api.limits.gpu_is_available", return_value=True):
+            response = benchmark_routes.create_run(
+                payload,
+                self.user,
+                self.session,
+            )
 
         self.assertEqual(response.status, benchmark.RunStatus.QUEUED)
         self.assertEqual(response.attempts, [])
@@ -519,7 +520,7 @@ class BenchmarkRunConversionTests(unittest.TestCase):
         ), patch(
             "zakbench.runners.run.run_single",
             return_value=result,
-        ):
+        ), patch("api.limits.gpu_is_available", return_value=True):
             response = benchmark_routes.create_run(
                 payload,
                 self.user,
@@ -559,7 +560,11 @@ class BenchmarkHttpAuthTests(unittest.TestCase):
         self.session = self.session_factory()
         self.addCleanup(self.engine.dispose)
         self.addCleanup(self.session.close)
-        self.user = User(email="http-user@example.com", password_hash="hash")
+        self.user = User(
+            email="http-user@example.com",
+            password_hash="hash",
+            role="member",
+        )
         self.session.add(self.user)
         self.session.commit()
 

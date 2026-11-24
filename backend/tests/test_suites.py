@@ -80,7 +80,7 @@ class SuiteDatabaseTestCase(unittest.TestCase):
         self.db = self.session_factory()
         self.addCleanup(self.engine.dispose)
         self.addCleanup(self.db.close)
-        self.user = User(email='suite-user@example.com', password_hash='hash')
+        self.user = User(email='suite-user@example.com', password_hash='hash', role='member')
         self.db.add(self.user)
         self.db.commit()
         self.results = tempfile.TemporaryDirectory()
@@ -231,7 +231,7 @@ class PersistedSuiteTests(SuiteDatabaseTestCase):
         personal_pair_id, personal_runs = create_queued_pair(self.db, self.user, 'array_sum')
         self.db.commit()
         suite_run = self.db.query(BenchmarkRun).filter(BenchmarkRun.suite_run_id.isnot(None)).first()
-        member = User(email='member@example.com', password_hash='hash')
+        member = User(email='member@example.com', password_hash='hash', role='member')
         self.db.add(member)
         self.db.commit()
         app.dependency_overrides[get_current_user_controller] = lambda: member

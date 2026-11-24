@@ -20,6 +20,11 @@ from api.schemas.benchmark import (
     TaskResponse,
 )
 from api.controllers.auth import get_current_user_controller
+from api.limits import (
+    enforce_global_run_caps,
+    lock_run_creation,
+    require_gpu_for_handwritten,
+)
 from api.controllers.suites import get_suite, list_suites
 from api.controllers.benchmark import (
     compile_controller,
@@ -80,6 +85,8 @@ def create_run_pair(
             detail="Member or admin role required to launch matched runs",
         )
     get_task_controller(payload.task_id)
+    lock_run_creation(db)
+    enforce_global_run_caps(db, new_runs=2)
     pair_id, runs = create_queued_pair(
         db,
         user,
@@ -105,7 +112,11 @@ def create_run(
     db: Session = Depends(get_db),
 ) -> RunResponse:
     get_task_controller(payload.task_id)
+    if payload.source is not None:
+        require_gpu_for_handwritten()
+    lock_run_creation(db)
     enforce_viewer_run_quota(db, user)
+    enforce_global_run_caps(db, new_runs=1)
     run = create_queued_run(
         db,
         user,

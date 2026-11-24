@@ -107,6 +107,22 @@ uvicorn main:app --reload
 
 Open the API documentation at `http://127.0.0.1:8000/docs`.
 
+### Usage limits
+
+These protect the single GPU and the paid sandbox. Each one is optional and
+falls back to its default when unset or not a positive integer.
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `RUN_QUEUE_CAP` | `50` | `POST /runs` and `POST /runs/pair` return `429` when the new runs would push the number of `queued` runs past this cap. |
+| `DAILY_RUN_CAP` | `200` | Site-wide limit on runs created through the API per UTC day, for every role including admin. A pair counts as two runs; CLI suite runs do not count. Returns `429` and resets at UTC midnight, like the viewer quota. |
+| `AUTH_RATE_LIMIT_PER_MINUTE` | `10` | `POST /auth/login` and `POST /auth/register` each allow this many requests per client IP per minute, then return `429` with a `Retry-After` header. The client IP comes from the `X-Real-IP` header that Railway's edge sets. Counts are kept in memory, so they reset when the API restarts. |
+
+Runs with hand-written `source` skip the model but still use the sandbox, so
+`POST /runs` rejects them with `503` while the GPU health check fails. An empty
+`GPU_API_URL` counts as the GPU being down. Model runs are not blocked by this
+check.
+
 ### Railway benchmark worker
 
 Deploy the API and benchmark worker as separate Railway services from the same
@@ -160,10 +176,13 @@ Suites are shared benchmark results, so any authenticated user can read every su
   backend default, while supplied seeds must be non-negative and fit the
   database signed 32-bit-integer range. Viewers may create at most 20 such
   runs per UTC calendar day. Queued and running runs count toward the quota;
-  pair and suite launches are not counted.
+  pair and suite launches are not counted. Runs with `source` return `503`
+  while the GPU is offline, and the global queue and daily caps return `429`
+  (see Usage limits).
 - `POST /runs/pair` creates one queued Zak run and one queued Python run for
   the same task, linked by a shared `pair_id`. Members and admins may launch
-  pairs; viewers receive `403`.
+  pairs; viewers receive `403`. The global queue and daily caps apply, with a
+  pair counting as two runs.
   The request accepts `task_id`, optional `temperature`, and optional `seed`;
   the same temperature and seed validation applies, and the response contains
   the `pair_id` and the two run IDs.
@@ -376,6 +395,10 @@ viewer
 member
 admin
 ```
+
+New signups get the `viewer` role (the column's server default is also
+`viewer`). Existing users keep their role; promote team members by updating
+`users.role` directly.
 
 The `email` field is unique, and passwords are stored only as hashes.
 
