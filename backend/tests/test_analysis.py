@@ -107,7 +107,7 @@ class DuckDBExportTests(unittest.TestCase):
                 path = self.out / (name + ".parquet")
                 self.assertTrue(path.is_file())
                 relation = con.read_parquet(str(path))
-                self.assertEqual(relation.count("*").fetchone()[0], counts[name])
+                self.assertEqual(relation.count("*").fetchall()[0][0], counts[name])
                 self.assertEqual(set(relation.columns), {field for field, _ in SCHEMAS[name]})
                 self.assertFalse(
                     set(relation.columns) & {
